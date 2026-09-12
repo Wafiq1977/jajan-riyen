@@ -1,0 +1,199 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { motion } from "framer-motion";
+import {
+  ArrowLeft,
+  MapPin,
+  Phone,
+  Clock3,
+  Star,
+  ChevronRight,
+  Flame,
+} from "lucide-react";
+import type { Store } from "@/lib/types";
+import { formatRupiah, discountPercent } from "@/lib/format";
+import { Button } from "@/components/ui/button";
+import { ProductThumb, Stars, SkeletonList, EmptyState } from "../shared";
+
+export default function StoreScreen({
+  storeId,
+  onBack,
+  onOpenProduct,
+}: {
+  storeId: string;
+  onBack: () => void;
+  onOpenProduct: (productId: string) => void;
+}) {
+  const [store, setStore] = useState<Store | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    fetch(`/api/stores/${storeId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!alive) return;
+        if (data.store) setStore(data.store as Store);
+        else setNotFound(true);
+      })
+      .catch(() => alive && setNotFound(true));
+    return () => {
+      alive = false;
+    };
+  }, [storeId]);
+
+  if (notFound) {
+    return (
+      <div className="pt-6">
+        <button onClick={onBack} className="press ml-4 flex items-center gap-1 text-sm font-bold text-primary">
+          <ArrowLeft className="h-4 w-4" /> Kembali
+        </button>
+        <EmptyState title="Toko tidak ditemukan" description="Toko mungkin telah ditutup." />
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      {/* Hero header */}
+      <div className="relative bg-brand-gradient px-5 pb-16 pt-5 rounded-b-[2rem] overflow-hidden">
+        <motion.div
+          className="absolute -right-10 -bottom-16 h-48 w-48 rounded-full bg-white/10"
+          animate={{ y: [0, -10, 0] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <div className="relative z-10">
+          <button
+            onClick={onBack}
+            className="press flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
+            aria-label="Kembali"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+        </div>
+        {store && (
+          <div className="relative z-10 mt-4 flex items-center gap-3">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-white text-3xl shadow-lg">
+              {store.category === "Minuman" ? "🧋" : store.category === "Dessert" ? "🍰" : "🍛"}
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-xl font-extrabold text-white">{store.name}</h1>
+              <div className="mt-1 flex items-center gap-2 text-xs text-teal-50/90">
+                <Stars rating={store.rating} className="text-amber-300" />
+                <span>·</span>
+                <span>{store.category}</span>
+                <span>·</span>
+                <span>{store.distanceKm.toFixed(1)} km</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {!store ? (
+        <div className="px-5 pt-6">
+          <SkeletonList count={3} />
+        </div>
+      ) : (
+        <>
+          {/* Info card */}
+          <div className="relative -mt-10 z-10 px-5">
+            <div className="rounded-3xl border border-teal-50 bg-white p-4 card-soft">
+              <div className="flex items-center gap-2 text-xs">
+                <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 font-bold text-emerald-600">
+                  <Clock3 className="h-3 w-3" /> Buka {store.openTime}–{store.closeTime}
+                </span>
+                <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 font-bold text-teal-700">
+                  <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {store.rating.toFixed(1)} rating
+                </span>
+              </div>
+              {store.description && (
+                <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{store.description}</p>
+              )}
+              {store.address && (
+                <div className="mt-3 flex items-start gap-2 border-t border-dashed border-border pt-3 text-[11px] text-muted-foreground">
+                  <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                  <span>{store.address}</span>
+                </div>
+              )}
+              <div className="mt-2 flex items-center gap-2 text-[11px] font-bold text-primary">
+                <Phone className="h-3.5 w-3.5" /> Hubungi penjual (simulasi)
+              </div>
+            </div>
+          </div>
+
+          {/* Products */}
+          <div className="mt-6 px-5">
+            <div className="mb-3 flex items-center justify-between">
+              <h2 className="text-[17px] font-extrabold tracking-tight">Menu & Promo</h2>
+              <span className="text-xs font-semibold text-muted-foreground">{store.products.length} produk</span>
+            </div>
+            <div className="space-y-3">
+              {store.products.map((product, idx) => {
+                const pct = discountPercent(product.price, product.originalPrice);
+                const soldOut = product.stock <= 0;
+                return (
+                  <motion.div
+                    key={product.id}
+                    initial={{ opacity: 0, y: 14 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="overflow-hidden rounded-3xl border border-teal-50 bg-white card-soft"
+                  >
+                    <button
+                      onClick={() => !soldOut && onOpenProduct(product.id)}
+                      className="flex w-full items-start gap-3 p-3.5 text-left"
+                      aria-label={`Lihat ${product.name}`}
+                    >
+                      <div className="relative shrink-0">
+                        <ProductThumb product={product} className="h-[74px] w-[74px]" />
+                        {product.isFlashSale && (
+                          <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-md">
+                            <Flame className="h-3 w-3 fill-white" />
+                          </span>
+                        )}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <h3 className="truncate text-sm font-extrabold text-foreground">{product.name}</h3>
+                        <p className="mt-0.5 line-clamp-2 text-[11px] leading-relaxed text-muted-foreground">
+                          {product.description}
+                        </p>
+                        <div className="mt-1.5 flex items-baseline gap-1.5">
+                          <span className="text-[15px] font-extrabold text-primary">{formatRupiah(product.price)}</span>
+                          {pct && (
+                            <>
+                              <span className="text-[10px] font-medium text-slate-400 line-through">
+                                {formatRupiah(product.originalPrice!)}
+                              </span>
+                              <span className="rounded bg-red-50 px-1 py-px text-[9px] font-extrabold text-red-500">
+                                -{pct}%
+                              </span>
+                            </>
+                          )}
+                        </div>
+                        <p className="mt-1 text-[10px] font-semibold text-slate-400">
+                          {product.sold.toLocaleString("id-ID")}+ terjual · stok {product.stock}
+                        </p>
+                      </div>
+                      <ChevronRight className="mt-6 h-4 w-4 shrink-0 text-slate-300" />
+                    </button>
+                    <div className="voucher-notch border-t border-dashed border-teal-100 px-3.5 py-2.5">
+                      <Button
+                        onClick={() => onOpenProduct(product.id)}
+                        disabled={soldOut}
+                        className="press h-9 w-full rounded-xl bg-primary text-xs font-extrabold shadow-md shadow-teal-500/25 hover:bg-teal-700 disabled:opacity-40"
+                      >
+                        {soldOut ? "Stok Habis" : "Beli Sekarang"}
+                      </Button>
+                    </div>
+                  </motion.div>
+                );
+              })}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
