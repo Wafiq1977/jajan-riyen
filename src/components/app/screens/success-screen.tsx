@@ -2,9 +2,11 @@
 
 import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Check, Receipt, Copy, PartyPopper } from "lucide-react";
+import { Check, Receipt, Copy, PartyPopper, QrCode } from "lucide-react";
+import type { Order } from "@/lib/types";
 import { formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { Barcode } from "../order-widgets";
 
 export default function SuccessScreen({
   orderId,
@@ -14,15 +16,26 @@ export default function SuccessScreen({
   onDone: () => void;
 }) {
   const [copied, setCopied] = useState(false);
+  const [order, setOrder] = useState<Order | null>(null);
 
   useEffect(() => {
-    // Success screen is purely presentational; order data lives in Orders tab.
+    let alive = true;
+    fetch(`/api/orders/${orderId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (alive && data?.order) setOrder(data.order as Order);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [orderId]);
 
   const confetti = Array.from({ length: 14 });
+  const code = order?.code ?? "······";
 
   return (
-    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6">
+    <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 py-10">
       {/* confetti */}
       {confetti.map((_, i) => (
         <motion.span
@@ -42,14 +55,14 @@ export default function SuccessScreen({
         initial={{ scale: 0 }}
         animate={{ scale: 1 }}
         transition={{ type: "spring", stiffness: 260, damping: 16 }}
-        className="relative flex h-28 w-28 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-teal-600 shadow-2xl shadow-teal-500/40"
+        className="relative flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-teal-400 to-teal-600 shadow-2xl shadow-teal-500/40"
       >
         <motion.span
           initial={{ scale: 0 }}
           animate={{ scale: 1 }}
           transition={{ delay: 0.25, type: "spring", stiffness: 300, damping: 14 }}
         >
-          <Check className="h-14 w-14 text-white" strokeWidth={3} />
+          <Check className="h-12 w-12 text-white" strokeWidth={3} />
         </motion.span>
         <motion.span
           className="absolute inset-0 rounded-full border-4 border-teal-200"
@@ -62,7 +75,7 @@ export default function SuccessScreen({
         initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.3 }}
-        className="mt-7 text-center"
+        className="mt-6 text-center"
       >
         <h1 className="flex items-center justify-center gap-2 text-2xl font-extrabold">
           Pesanan Berhasil! <PartyPopper className="h-6 w-6 text-amber-500" />
@@ -72,6 +85,7 @@ export default function SuccessScreen({
         </p>
       </motion.div>
 
+      {/* Barcode + kode pesanan */}
       <motion.div
         initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
@@ -84,12 +98,11 @@ export default function SuccessScreen({
           </span>
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Kode Pesanan</p>
-            <p className="font-mono text-lg font-extrabold tracking-wide text-foreground">
-              {orderId.slice(-6).toUpperCase()}
-            </p>
+            <p className="font-mono text-lg font-extrabold tracking-wide text-foreground">{code}</p>
           </div>
           <button
             onClick={() => {
+              navigator.clipboard?.writeText(code).catch(() => {});
               setCopied(true);
               setTimeout(() => setCopied(false), 1500);
             }}
@@ -100,6 +113,18 @@ export default function SuccessScreen({
           </button>
         </div>
         {copied && <p className="mt-1 text-right text-[10px] font-bold text-primary">Kode disalin ✓</p>}
+
+        {/* Barcode pengambilan */}
+        {!order || order.status !== "CANCELLED" ? (
+          <div className="mt-4 rounded-2xl border-2 border-dashed border-teal-100 p-3 text-center">
+            <Barcode value={order?.code ?? "JR-LOADING"} height={48} />
+            <p className="mt-1.5 flex items-center justify-center gap-1.5 text-[10px] font-semibold leading-relaxed text-slate-400">
+              <QrCode className="h-3.5 w-3.5 shrink-0 text-primary" />
+              Barcode konfirmasi — tunjukkan ke penjual saat mengambil pesanan
+            </p>
+          </div>
+        ) : null}
+
         <div className="mt-3 space-y-1.5 border-t border-dashed border-border pt-3 text-xs">
           <div className="flex justify-between">
             <span className="text-muted-foreground">Status</span>
@@ -107,7 +132,7 @@ export default function SuccessScreen({
           </div>
           <div className="flex justify-between">
             <span className="text-muted-foreground">Dibuat</span>
-            <span className="font-bold">{formatDateTime(new Date().toISOString())}</span>
+            <span className="font-bold">{formatDateTime(order?.createdAt ?? new Date().toISOString())}</span>
           </div>
         </div>
       </motion.div>
@@ -120,9 +145,9 @@ export default function SuccessScreen({
       >
         <Button
           onClick={onDone}
-          className="press h-13 h-[52px] w-full rounded-2xl bg-primary text-base font-extrabold shadow-xl shadow-teal-500/30 hover:bg-teal-700"
+          className="press h-[52px] w-full rounded-2xl bg-primary text-base font-extrabold shadow-xl shadow-teal-500/30 hover:bg-teal-700"
         >
-          Lihat Pesanan Saya
+          Lihat & Lacak Pesanan Saya
         </Button>
       </motion.div>
     </div>

@@ -3,6 +3,26 @@ import { db } from "@/lib/db";
 
 const VALID_STATUSES = ["PENDING", "PROCESSING", "COMPLETED", "CANCELLED"];
 
+export async function GET(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const order = await db.order.findUnique({
+      where: { id },
+      include: { items: true, store: true, user: { select: { id: true, phone: true, name: true } } },
+    });
+    if (!order) {
+      return NextResponse.json({ error: "Pesanan tidak ditemukan" }, { status: 404 });
+    }
+    return NextResponse.json({ order });
+  } catch (error) {
+    console.error("Get order error:", error);
+    return NextResponse.json({ error: "Terjadi kesalahan server" }, { status: 500 });
+  }
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

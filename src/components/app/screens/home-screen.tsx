@@ -4,8 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
   Search,
-  MapPin,
-  Bell,
   Clock3,
   ChevronRight,
   ShoppingBasket,
@@ -17,8 +15,9 @@ import {
 import type { Store, User } from "@/lib/types";
 import { formatRupiah, maskPhone } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { usePrefsStore } from "@/lib/app-store";
 import { BrandWordmark } from "../brand";
-import { TopBar, CountdownChip } from "../widgets";
+import { TopBar, CountdownChip, AreaButton, BellIconButton, CartIconButton } from "../widgets";
 import { ProductThumb, Stars, SectionTitle, EmptyState, DiscountBadge, SkeletonList } from "../shared";
 
 const CATEGORIES = [
@@ -30,16 +29,25 @@ const CATEGORIES = [
 
 export default function HomeScreen({
   user,
+  unreadCount,
   onOpenStore,
   onOpenFlashSale,
+  onOpenLocation,
+  onOpenNotifications,
+  onOpenCart,
 }: {
   user: User | null;
+  unreadCount: number;
   onOpenStore: (storeId: string) => void;
   onOpenFlashSale: () => void;
+  onOpenLocation: () => void;
+  onOpenNotifications: () => void;
+  onOpenCart: () => void;
 }) {
   const [stores, setStores] = useState<Store[] | null>(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("");
+  const area = usePrefsStore((s) => s.area);
 
   useEffect(() => {
     let alive = true;
@@ -98,30 +106,9 @@ export default function HomeScreen({
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">
-              <button
-                className={cn(
-                  "press relative flex h-9 w-9 items-center justify-center rounded-full backdrop-blur transition-colors",
-                  scrolled ? "bg-teal-50 text-primary" : "bg-white/15 text-white"
-                )}
-                aria-label="Notifikasi"
-              >
-                <Bell className="h-4 w-4" />
-                <span
-                  className={cn(
-                    "absolute right-2 top-2 h-2 w-2 rounded-full bg-amber-300",
-                    scrolled ? "ring-2 ring-white" : "ring-2 ring-teal-600"
-                  )}
-                />
-              </button>
-              <button
-                className={cn(
-                  "press flex h-9 items-center gap-1 rounded-full px-3 text-xs font-bold backdrop-blur transition-colors",
-                  scrolled ? "bg-teal-50 text-primary" : "bg-white/15 text-white"
-                )}
-              >
-                <MapPin className="h-3.5 w-3.5" />
-                Banaran ▾
-              </button>
+              <AreaButton scrolled={scrolled} area={area} onClick={onOpenLocation} />
+              <BellIconButton scrolled={scrolled} unread={unreadCount} onClick={onOpenNotifications} />
+              <CartIconButton scrolled={scrolled} onClick={onOpenCart} />
             </div>
           </>
         )}
@@ -290,8 +277,14 @@ export default function HomeScreen({
                   className="press w-full overflow-hidden rounded-3xl border border-teal-50 bg-white p-3.5 text-left card-soft"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-brand-gradient text-2xl text-white shadow-md shadow-teal-500/25">
-                      {store.category === "Minuman" ? "🧋" : store.category === "Dessert" ? "🍰" : "🍛"}
+                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-2xl bg-brand-gradient shadow-md shadow-teal-500/25">
+                      {store.logoUrl ? (
+                        <img src={store.logoUrl} alt={`Logo ${store.name}`} className="h-full w-full object-cover" loading="lazy" />
+                      ) : (
+                        <span className="flex h-full w-full items-center justify-center text-2xl text-white">
+                          {store.category === "Minuman" ? "🧋" : store.category === "Dessert" ? "🍰" : "🍛"}
+                        </span>
+                      )}
                     </div>
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center justify-between gap-2">

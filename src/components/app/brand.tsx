@@ -3,9 +3,10 @@
 import { cn } from "@/lib/utils";
 
 /**
- * JR monogram — Jajan Riyen logo.
- * Dark rounded "JR" letters with a fresh green leaf sprouting from the J,
- * recreated from the owner's logo as crisp SVG.
+ * JR monogram — Jajan Riyen logo v2.
+ * J and R are fused into ONE connected stroke: the J's bottom hook flows up
+ * into the R's stem, and a fresh leaf sprouts from the shared top line.
+ * Pure paths (no font dependency) so it renders identically everywhere.
  */
 export function JrMark({
   className,
@@ -17,59 +18,59 @@ export function JrMark({
   leaf?: string;
 }) {
   return (
-    <svg viewBox="0 0 96 96" className={className} role="img" aria-label="Logo Jajan Riyen">
-      <g transform="translate(4 20) rotate(-14 11 11)">
-        <path d="M0 22 C0 10 10 0 22 0 C22 12 12 22 0 22 Z" fill={leaf} />
-        <path
-          d="M3.5 18.5 C8 13 13 8 18.5 3.5"
-          stroke="#ffffff"
-          strokeWidth="2"
-          strokeLinecap="round"
-          fill="none"
-          opacity="0.55"
-        />
-      </g>
-      <text
-        x="13"
-        y="79"
-        fontSize="60"
-        fontWeight="800"
-        letterSpacing="-2"
-        fill={ink}
-        style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif" }}
-      >
-        J
-      </text>
-      <text
-        x="47"
-        y="79"
-        fontSize="60"
-        fontWeight="800"
-        letterSpacing="-2"
-        fill={ink}
-        style={{ fontFamily: "'Plus Jakarta Sans', Arial, sans-serif" }}
-      >
-        R
-      </text>
+    <svg
+      viewBox="0 0 64 64"
+      className={className}
+      fill="none"
+      role="img"
+      aria-label="Logo Jajan Riyen"
+    >
+      {/* leaf sprouting from the J top */}
+      <path d="M15.5 14 C15.5 8 19.5 4.4 25 4 C25.5 9.6 21 13.7 15.5 14 Z" fill={leaf} />
+      <path
+        d="M17 12.4 C19 10.5 21 8.5 23.4 6.8"
+        stroke="#ffffff"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        opacity="0.55"
+      />
+      {/* J — hook flows up into the R stem (connected ligature) */}
+      <path
+        d="M15.5 14 V32 A9.5 9.5 0 0 0 34.5 32 V52"
+        stroke={ink}
+        strokeWidth="6.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      {/* R — stem shared with the J hook, bowl + leg branch off */}
+      <path
+        d="M34.5 52 V14 H42 A9 9 0 0 1 42 32 H34.5"
+        stroke={ink}
+        strokeWidth="6.4"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M42 32 L51.5 52" stroke={ink} strokeWidth="6.4" strokeLinecap="round" />
     </svg>
   );
 }
 
-/** Square app-icon style badge with the JR mark on a white card. */
-export function JrBadge({ className }: { className?: string }) {
+/** Square app-icon badge: connected JR on the teal brand gradient. */
+export function JrBadge({ className, light = false }: { className?: string; light?: boolean }) {
   return (
     <span
       className={cn(
-        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-white shadow-md shadow-teal-900/10",
+        "relative flex shrink-0 items-center justify-center overflow-hidden rounded-2xl",
+        light ? "bg-white/15 backdrop-blur" : "bg-brand-gradient shadow-md shadow-teal-900/15",
         className
       )}
     >
-      <JrMark className="h-[86%] w-[86%]" />
+      <JrMark className="h-[88%] w-[88%]" ink="#ffffff" leaf="#6ee7a0" />
     </span>
   );
 }
 
-/** JR mark on the teal brand gradient (splash / headers). */
+/** JR mark on the teal brand gradient (headers). */
 export function JrBadgeGradient({ className }: { className?: string }) {
   return (
     <span
@@ -84,7 +85,7 @@ export function JrBadgeGradient({ className }: { className?: string }) {
 }
 
 /**
- * "Jajan Riyen" wordmark next to the JR badge.
+ * "Jajan Riyen" wordmark next to the JR mark.
  * `light` = for use on teal gradient headers.
  */
 export function BrandWordmark({
@@ -103,7 +104,11 @@ export function BrandWordmark({
       {badge ? (
         <JrBadge className={box} />
       ) : (
-        <JrMark className={cn(box, "drop-shadow-sm")} ink={light ? "#ffffff" : "#253835"} />
+        <JrMark
+          className={cn(box, light && "drop-shadow-sm")}
+          ink={light ? "#ffffff" : "#253835"}
+          leaf={light ? "#6ee7a0" : "#2fbf5f"}
+        />
       )}
       <span className={cn("font-extrabold leading-none tracking-tight", text, light ? "text-white" : "text-foreground")}>
         Jajan<span className={light ? "text-emerald-300" : "text-emerald-500"}>Riyen</span>

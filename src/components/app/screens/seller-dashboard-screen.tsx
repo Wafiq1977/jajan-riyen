@@ -14,6 +14,11 @@ import {
   ChevronRight,
   CircleDollarSign,
   ShieldCheck,
+  ScanLine,
+  Settings2,
+  QrCode,
+  ImagePlus,
+  CheckCircle2,
 } from "lucide-react";
 import {
   Dialog,
@@ -42,6 +47,8 @@ import type { Order, Product, Store, User } from "@/lib/types";
 import { formatRupiah, formatRupiahCompact, formatDateTime, maskPhone, discountPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { StatusBadge, PaymentBadge, EmptyState, SkeletonList, Stars } from "../shared";
+import { ImageUploader } from "../upload";
+import { ScanDialog } from "../order-widgets";
 
 const EMOJIS = ["🍽️", "🍛", "🧋", "☕", "🍰", "🍜", "🍔", "🍗", "🥟", "🍦", "🥞", "🍢", "🍚", "🧊", "🥤", "🌶️"];
 
@@ -49,15 +56,18 @@ export default function SellerDashboardScreen({
   user,
   onBack,
   onOpenStore,
+  onUserRefreshed,
 }: {
   user: User | null;
   onBack: () => void;
   onOpenStore: (storeId: string) => void;
+  onUserRefreshed: (user: User) => void;
 }) {
   const store = user?.store ?? null;
-  const [tab, setTab] = useState<"orders" | "products">("orders");
+  const [tab, setTab] = useState<"orders" | "products" | "settings">("orders");
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [products, setProducts] = useState<Product[] | null>(null);
+  const [scanOpen, setScanOpen] = useState(false);
 
   const load = useCallback(() => {
     if (!store) return;
@@ -118,8 +128,21 @@ export default function SellerDashboardScreen({
 
   return (
     <div>
-      {/* Separate seller page header — dark, distinct from buyer */}
+      {/* Separate seller page header — dark, banner latar, logo toko */}
       <div className="relative overflow-hidden rounded-b-[2rem] bg-slate-900 px-5 pb-14 pt-6">
+        {store.bannerUrl && (
+          <img
+            src={store.bannerUrl}
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover opacity-40"
+          />
+        )}
+        <div
+          className={cn(
+            "absolute inset-0",
+            store.bannerUrl ? "bg-gradient-to-t from-slate-950 via-slate-950/70 to-slate-950/60" : ""
+          )}
+        />
         <motion.div
           className="absolute -left-10 -bottom-14 h-40 w-40 rounded-full bg-teal-400/15"
           animate={{ y: [0, -10, 0] }}
@@ -138,8 +161,14 @@ export default function SellerDashboardScreen({
           </span>
         </div>
         <div className="relative z-10 mt-4 flex items-center gap-3">
-          <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-white text-2xl shadow-lg">
-            {store.category === "Minuman" ? "🧋" : store.category === "Dessert" ? "🍰" : "🍛"}
+          <div className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-2xl bg-white shadow-lg">
+            {store.logoUrl ? (
+              <img src={store.logoUrl} alt={`Logo ${store.name}`} className="h-full w-full object-cover" />
+            ) : (
+              <span className="flex h-full w-full items-center justify-center text-2xl">
+                {store.category === "Minuman" ? "🧋" : store.category === "Dessert" ? "🍰" : "🍛"}
+              </span>
+            )}
           </div>
           <div className="min-w-0">
             <p className="text-[10px] font-bold uppercase tracking-widest text-teal-300">Dashboard Penjual</p>
@@ -175,7 +204,7 @@ export default function SellerDashboardScreen({
       {/* Tabs */}
       <div className="mt-5 px-5">
         <div className="flex rounded-2xl bg-muted p-1">
-          {(["orders", "products"] as const).map((t) => (
+          {(["orders", "products", "settings"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -192,7 +221,7 @@ export default function SellerDashboardScreen({
                 />
               )}
               <span className="relative z-10">
-                {t === "orders" ? `Pesanan (${stats.pending + stats.processing})` : `Produk (${products?.length ?? 0})`}
+                {t === "orders" ? `Pesanan (${stats.pending + stats.processing})` : t === "products" ? `Produk (${products?.length ?? 0})` : "Toko"}
               </span>
             </button>
           ))}
@@ -212,6 +241,23 @@ export default function SellerDashboardScreen({
             />
           ) : (
             <div className="space-y-3">
+              {/* Scan barcode pembeli */}
+              <button
+                onClick={() => setScanOpen(true)}
+                className="press flex w-full items-center gap-3 rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/50 px-4 py-3 text-left hover:bg-teal-50"
+              >
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white">
+                  <ScanLine className="h-4 w-4" />
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="block text-xs font-extrabold text-foreground">Scan Barcode Pembeli</span>
+                  <span className="block text-[10px] text-muted-foreground">
+                    Pindai barcode pesanan untuk konfirmasi cepat
+                  </span>
+                </span>
+                <ChevronRight className="h-4 w-4 text-slate-300" />
+              </button>
+
               {orders.map((order, idx) => (
                 <motion.div
                   key={order.id}
@@ -289,53 +335,65 @@ export default function SellerDashboardScreen({
               ))}
             </div>
           )
-        ) : !products ? (
-          <SkeletonList count={3} />
-        ) : products.length === 0 ? (
-          <EmptyState
-            icon={Package}
-            title="Belum ada produk"
-            description="Tambahkan menu pertamamu sekarang!"
-            action={<AddProductDialog storeId={store.id} onCreated={load} />}
-          />
-        ) : (
-          <div className="space-y-3">
-            {products.map((p, idx) => (
-              <motion.div
-                key={p.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: Math.min(idx * 0.04, 0.25) }}
-                className="flex items-center gap-3 rounded-3xl border border-teal-50 bg-white p-3.5 card-soft"
-              >
-                <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-50 text-xl">
-                  {p.imageUrl ? (
-                    <img src={p.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
-                  ) : (
-                    p.emoji
-                  )}
-                </span>
-                <div className="min-w-0 flex-1">
-                  <h3 className="truncate text-xs font-extrabold text-foreground">{p.name}</h3>
-                  <div className="mt-0.5 flex items-baseline gap-1.5">
-                    <span className="text-xs font-extrabold text-primary">{formatRupiah(p.price)}</span>
-                    {discountPercent(p.price, p.originalPrice) && (
-                      <span className="text-[9px] font-medium text-slate-400 line-through">
-                        {formatRupiah(p.originalPrice!)}
-                      </span>
+        ) : tab === "products" ? (
+          !products ? (
+            <SkeletonList count={3} />
+          ) : products.length === 0 ? (
+            <EmptyState
+              icon={Package}
+              title="Belum ada produk"
+              description="Tambahkan menu pertamamu sekarang!"
+              action={<AddProductDialog storeId={store.id} onCreated={load} />}
+            />
+          ) : (
+            <div className="space-y-3">
+              {products.map((p, idx) => (
+                <motion.div
+                  key={p.id}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: Math.min(idx * 0.04, 0.25) }}
+                  className="flex items-center gap-3 rounded-3xl border border-teal-50 bg-white p-3.5 card-soft"
+                >
+                  <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-50 text-xl">
+                    {p.imageUrl ? (
+                      <img src={p.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                    ) : (
+                      p.emoji
                     )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="truncate text-xs font-extrabold text-foreground">{p.name}</h3>
+                    <div className="mt-0.5 flex items-baseline gap-1.5">
+                      <span className="text-xs font-extrabold text-primary">{formatRupiah(p.price)}</span>
+                      {discountPercent(p.price, p.originalPrice) && (
+                        <span className="text-[9px] font-medium text-slate-400 line-through">
+                          {formatRupiah(p.originalPrice!)}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
+                      stok {p.stock} · {p.sold.toLocaleString("id-ID")} terjual {p.isFlashSale ? "· ⚡ flash" : ""}
+                    </p>
                   </div>
-                  <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
-                    stok {p.stock} · {p.sold.toLocaleString("id-ID")} terjual {p.isFlashSale ? "· ⚡ flash" : ""}
-                  </p>
-                </div>
-                <DeleteProductButton onDelete={() => deleteProduct(p.id)} name={p.name} />
-              </motion.div>
-            ))}
-            <AddProductDialog storeId={store.id} onCreated={load} block />
-          </div>
+                  <DeleteProductButton onDelete={() => deleteProduct(p.id)} name={p.name} />
+                </motion.div>
+              ))}
+              <AddProductDialog storeId={store.id} onCreated={load} block />
+            </div>
+          )
+        ) : (
+          <StoreSettingsTab store={store} onUserRefreshed={onUserRefreshed} />
         )}
       </div>
+
+      {/* Scan dialog (seller mode) */}
+      <ScanDialog
+        open={scanOpen}
+        onOpenChange={setScanOpen}
+        sellerStoreId={store.id}
+        onOrderUpdated={load}
+      />
     </div>
   );
 }
@@ -402,6 +460,10 @@ function DeleteProductButton({ onDelete, name }: { onDelete: () => void; name: s
   );
 }
 
+/* ------------------------------------------------------------------ */
+/* AddProductDialog — dengan upload foto produk                        */
+/* ------------------------------------------------------------------ */
+
 function AddProductDialog({
   storeId,
   onCreated,
@@ -418,6 +480,7 @@ function AddProductDialog({
   const [stock, setStock] = useState("50");
   const [description, setDescription] = useState("");
   const [emoji, setEmoji] = useState("🍽️");
+  const [imageUrl, setImageUrl] = useState<string | null>(null);
   const [flash, setFlash] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -429,6 +492,7 @@ function AddProductDialog({
     setStock("50");
     setDescription("");
     setEmoji("🍽️");
+    setImageUrl(null);
     setFlash(false);
     setError(null);
   };
@@ -454,6 +518,7 @@ function AddProductDialog({
           originalPrice: origNum || null,
           stock: parseInt(stock, 10) || 0,
           emoji,
+          imageUrl,
           isFlashSale: flash,
         }),
       });
@@ -484,7 +549,7 @@ function AddProductDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-[420px] max-h-[85vh] overflow-y-auto rounded-3xl pretty-scroll">
+      <DialogContent className="max-h-[85vh] max-w-[420px] overflow-y-auto rounded-3xl pretty-scroll">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-left">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-50 text-primary">
@@ -498,6 +563,20 @@ function AddProductDialog({
         </DialogHeader>
 
         <div className="space-y-3.5">
+          {/* Foto produk */}
+          <div>
+            <label className="mb-1.5 flex items-center gap-1.5 text-xs font-bold">
+              <ImagePlus className="h-3.5 w-3.5 text-primary" /> Foto Produk
+            </label>
+            <ImageUploader
+              value={imageUrl}
+              onChange={setImageUrl}
+              variant="image"
+              label="Unggah foto produk"
+              hint="JPG/PNG, maks 5MB — tampil di etalase pembeli"
+            />
+          </div>
+
           <div>
             <label className="mb-1.5 block text-xs font-bold">Emoji Produk</label>
             <div className="flex flex-wrap gap-1.5">
@@ -514,6 +593,7 @@ function AddProductDialog({
                 </button>
               ))}
             </div>
+            <p className="mt-1 text-[10px] text-slate-400">Dipakai sebagai ikon cadangan bila foto tidak diunggah.</p>
           </div>
 
           <div>
@@ -590,5 +670,160 @@ function AddProductDialog({
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+/* ------------------------------------------------------------------ */
+/* StoreSettingsTab — QRIS (opsional) + logo & banner                  */
+/* ------------------------------------------------------------------ */
+
+function StoreSettingsTab({
+  store,
+  onUserRefreshed,
+}: {
+  store: Store;
+  onUserRefreshed: (user: User) => void;
+}) {
+  const [logoUrl, setLogoUrl] = useState<string | null>(store.logoUrl);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(store.bannerUrl);
+  const [qrisEnabled, setQrisEnabled] = useState(store.qrisEnabled);
+  const [qrisImageUrl, setQrisImageUrl] = useState<string | null>(store.qrisImageUrl);
+  const [qrisCode, setQrisCode] = useState(store.qrisCode ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const save = async () => {
+    if (saving) return;
+    setSaving(true);
+    setError(null);
+    setSaved(false);
+    try {
+      const res = await fetch("/api/seller/store", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          storeId: store.id,
+          logoUrl,
+          bannerUrl,
+          qrisEnabled,
+          qrisImageUrl,
+          qrisCode: qrisCode.trim() || null,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Gagal menyimpan");
+      if (data.user) onUserRefreshed(data.user as User);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2500);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal menyimpan");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      {/* Pengaturan QRIS */}
+      <div className="rounded-3xl border border-violet-100 bg-gradient-to-b from-violet-50/60 to-white p-4 card-soft">
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex items-start gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-violet-100 text-violet-600">
+              <QrCode className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+            </span>
+            <div>
+              <p className="text-xs font-extrabold text-foreground">Pembayaran QRIS (opsional)</p>
+              <p className="mt-0.5 text-[10px] leading-relaxed text-muted-foreground">
+                Aktifkan agar pembeli bisa bayar tanpa uang pas. Unggah gambar QRIS-mu (dari bank/e-wallet)
+                atau tulis kode merchant.
+              </p>
+            </div>
+          </div>
+          <Switch
+            checked={qrisEnabled}
+            onCheckedChange={(v) => {
+              setError(null);
+              setQrisEnabled(v);
+            }}
+          />
+        </div>
+
+        <div className="mt-3 flex items-start gap-2 rounded-2xl bg-violet-50/70 p-3 text-[10px] font-medium leading-relaxed text-violet-700">
+          🔳 Isi gambar/kode QRIS dulu, lalu aktifkan sakelar di atas agar pembeli bisa memilih QRIS saat checkout.
+        </div>
+
+        <div className="mt-3 space-y-3.5 border-t border-dashed border-violet-100 pt-4">
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-xs font-bold">Gambar Kode QRIS</p>
+            <ImageUploader
+              value={qrisImageUrl}
+              onChange={setQrisImageUrl}
+              variant="qris"
+              label="Unggah gambar QRIS"
+              hint="Potongan QRIS dari aplikasi bank / e-wallet"
+            />
+          </div>
+          <div>
+            <label className="mb-1.5 block text-xs font-bold" htmlFor="qris-code">
+              Kode QRIS / NMID Merchant
+            </label>
+            <Input
+              id="qris-code"
+              value={qrisCode}
+              onChange={(e) => setQrisCode(e.target.value.slice(0, 32))}
+              placeholder="cth: ID10203340056781"
+              className="h-11 rounded-xl bg-muted/30 font-mono text-sm font-semibold tracking-wider"
+            />
+            <p className="mt-1 text-[10px] text-slate-400">
+              Kode ini tampil di bawah QRIS saat pembeli checkout.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* Logo & banner */}
+      <div className="rounded-3xl border border-teal-50 bg-white p-4 card-soft">
+        <p className="flex items-center gap-1.5 text-xs font-extrabold text-foreground">
+          <ImagePlus className="h-4 w-4 text-primary" /> Logo &amp; Banner Toko
+        </p>
+        <div className="mt-3 flex items-start gap-4">
+          <div>
+            <p className="mb-1.5 text-xs font-bold">Logo</p>
+            <ImageUploader value={logoUrl} onChange={setLogoUrl} variant="logo" label="Unggah logo" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="mb-1.5 text-xs font-bold">Banner latar</p>
+            <ImageUploader value={bannerUrl} onChange={setBannerUrl} variant="banner" label="Unggah banner" />
+          </div>
+        </div>
+        <p className="mt-2.5 text-[10px] text-slate-400">
+          Banner tampil di belakang nama toko (halaman toko &amp; dashboard).
+        </p>
+      </div>
+
+      {error && <p className="text-center text-xs font-semibold text-red-500">{error}</p>}
+
+      <Button
+        onClick={save}
+        disabled={saving}
+        className={cn(
+          "press h-12 w-full rounded-2xl text-sm font-extrabold shadow-lg shadow-teal-500/30",
+          saved ? "bg-emerald-500 hover:bg-emerald-600" : "bg-primary hover:bg-teal-700"
+        )}
+      >
+        {saving ? (
+          <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+        ) : saved ? (
+          <span className="inline-flex items-center gap-1.5">
+            <CheckCircle2 className="h-4 w-4" /> Tersimpan!
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1.5">
+            <Settings2 className="h-4 w-4" /> Simpan Pengaturan Toko
+          </span>
+        )}
+      </Button>
+    </div>
   );
 }

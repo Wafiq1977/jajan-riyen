@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CartItem, Product, Store, User } from "./types";
+import type { CartItem, Order, Product, Store, User } from "./types";
 
 interface AppState {
   user: User | null;
@@ -18,6 +18,136 @@ export const useAppStore = create<AppState>()(
     { name: "jajanriyen-session" }
   )
 );
+
+/* ------------------------------------------------------------------ */
+/* PREFS — user-selected location area (shown in the top bar).          */
+/* ------------------------------------------------------------------ */
+
+export const AREAS = [
+  "Banaran",
+  "Semarang Tengah",
+  "Banyumanik",
+  "Tembalang",
+  "Pedalangan",
+  "Gajahmungkur",
+  "Candisari",
+  "Mijen",
+];
+
+interface PrefsState {
+  area: string;
+  setArea: (area: string) => void;
+}
+
+export const usePrefsStore = create<PrefsState>()(
+  persist(
+    (set) => ({
+      area: "Banaran",
+      setArea: (area) => set({ area }),
+    }),
+    { name: "jajanriyen-prefs" }
+  )
+);
+
+/* ------------------------------------------------------------------ */
+/* NOTIFICATIONS — lightweight feed derived from the user's orders.     */
+/* ------------------------------------------------------------------ */
+
+export interface NotifItem {
+  id: string;
+  title: string;
+  body: string;
+  emoji: string;
+  at: string;
+  kind: "order" | "promo";
+  orderStatus?: string;
+}
+
+interface NotifState {
+  orders: Order[];
+  lastRead: string;
+  setOrders: (orders: Order[]) => void;
+  markRead: () => void;
+}
+
+export const useNotifStore = create<NotifState>()((set) => ({
+  orders: [],
+  lastRead: new Date(0).toISOString(),
+  setOrders: (orders) => set({ orders }),
+  markRead: () => set({ lastRead: new Date().toISOString() }),
+}));
+
+/** Build a notification feed from the user's orders + always-on promos. */
+export function buildNotifications(orders: Order[]): NotifItem[] {
+  const promo: NotifItem[] = [
+    {
+      id: "promo-flash",
+      title: "Flash Sale hari ini ⚡",
+      body: "Diskon hingga 45% buat kuliner lokal. Berakhir tengah malam!",
+      emoji: "⚡",
+      at: new Date(new Date().setHours(6, 0, 0, 0)).toISOString(),
+      kind: "promo",
+    },
+    {
+      id: "promo-qris",
+      title: "Bayar pakai QRIS lebih praktis",
+      body: "Scan QRIS penjual langsung dari aplikasi — anti uang pas.",
+      emoji: "🔳",
+      at: new Date(new Date().setHours(5, 0, 0, 0)).toISOString(),
+      kind: "promo",
+    },
+  ];
+
+  const fromOrders: NotifItem[] = orders.map((o) => {
+    const storeName = o.store?.name ?? "Penjual";
+    switch (o.status) {
+      case "PENDING":
+        return {
+          id: `order-${o.id}`,
+          title: `Pesanan ${o.code} diterima`,
+          body: `${storeName} sedang memeriksa pesananmu (${o.quantity} item · Rp${o.totalPrice.toLocaleString("id-ID")}).`,
+          emoji: "🧾",
+          at: o.createdAt,
+          kind: "order",
+          orderStatus: o.status,
+        };
+      case "PROCESSING":
+        return {
+          id: `order-${o.id}`,
+          title: `Pesanan ${o.code} sedang diproses`,
+          body: `${storeName} sedang menyiapkan pesananmu. Siapkan barcode saat pengambilan.`,
+          emoji: "👨‍🍳",
+          at: o.updatedAt ?? o.createdAt,
+          kind: "order",
+          orderStatus: o.status,
+        };
+      case "COMPLETED":
+        return {
+          id: `order-${o.id}`,
+          title: `Pesanan ${o.code} selesai`,
+          body: `Terima kasih sudah jajan di ${storeName}! Jangan lupa beri rating ya.`,
+          emoji: "🎉",
+          at: o.updatedAt ?? o.createdAt,
+          kind: "order",
+          orderStatus: o.status,
+        };
+      default:
+        return {
+          id: `order-${o.id}`,
+          title: `Pesanan ${o.code} dibatalkan`,
+          body: `Pesananmu di ${storeName} dibatalkan.`,
+          emoji: "❌",
+          at: o.updatedAt ?? o.createdAt,
+          kind: "order",
+          orderStatus: o.status,
+        };
+    }
+  });
+
+  return [...fromOrders, ...promo].sort(
+    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
+  );
+}
 
 /* ------------------------------------------------------------------ */
 /* CART — one UMKM at a time.                                          */

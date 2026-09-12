@@ -10,6 +10,8 @@ import {
   BarChart3,
   Loader2,
   CheckCircle2,
+  ImagePlus,
+  QrCode,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -22,6 +24,7 @@ import {
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
+import { ImageUploader } from "../upload";
 
 const CATEGORIES = [
   { value: "Makanan", emoji: "🍛" },
@@ -31,8 +34,9 @@ const CATEGORIES = [
 
 const BENEFITS = [
   { icon: Store, title: "Toko online gratis", desc: "Etalase produkmu tampil ke semua pembeli Jajan Riyen" },
-  { icon: PackagePlus, title: "Kelola menu mudah", desc: "Tambah produk, atur stok & harga dalam sekali klik" },
+  { icon: PackagePlus, title: "Kelola menu mudah", desc: "Tambah produk + foto, atur stok & harga dalam sekali klik" },
   { icon: BarChart3, title: "Dashboard tersendiri", desc: "Halaman penjual terpisah dari akun pembeli" },
+  { icon: QrCode, title: "Terima QRIS (opsional)", desc: "Unggah kode QRIS-mu, pembeli bayar lebih praktis" },
 ];
 
 export default function SellerFormScreen({
@@ -48,6 +52,8 @@ export default function SellerFormScreen({
   const [category, setCategory] = useState("Makanan");
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +71,8 @@ export default function SellerFormScreen({
           category,
           description,
           address,
+          logoUrl,
+          bannerUrl,
         }),
       });
       const data = await res.json();
@@ -187,6 +195,39 @@ export default function SellerFormScreen({
               maxLength={120}
             />
           </div>
+        </div>
+
+        {/* Branding toko — logo & banner */}
+        <h2 className="mb-2.5 mt-5 flex items-center gap-1.5 text-sm font-extrabold">
+          <ImagePlus className="h-4 w-4 text-primary" /> Logo &amp; Banner Toko
+        </h2>
+        <div className="rounded-3xl border border-teal-50 bg-white p-4 card-soft">
+          <div className="flex items-start gap-4">
+            <div>
+              <p className="mb-1.5 text-xs font-bold">Logo UMKM</p>
+              <ImageUploader
+                value={logoUrl}
+                onChange={setLogoUrl}
+                variant="logo"
+                label="Unggah logo"
+                hint="Persegi, JPG/PNG"
+              />
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="mb-1.5 text-xs font-bold">Banner latar toko</p>
+              <ImageUploader
+                value={bannerUrl}
+                onChange={setBannerUrl}
+                variant="banner"
+                label="Unggah banner"
+                hint="Tampil di belakang nama tokomu"
+              />
+            </div>
+          </div>
+          <p className="mt-2.5 text-[10px] leading-relaxed text-slate-400">
+            Logo tampil di daftar toko &amp; detail; banner jadi latar belakang nama toko. Opsional — kalau
+            kosong, kami pakai emoji kategori.
+          </p>
         </div>
 
         {error && <p className="mt-3 text-center text-xs font-semibold text-red-500">{error}</p>}

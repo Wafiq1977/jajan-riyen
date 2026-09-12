@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, ReceiptText } from "lucide-react";
+import { RefreshCw, ReceiptText, ScanLine, QrCode } from "lucide-react";
 import type { Order, OrderStatus, User } from "@/lib/types";
 import { formatRupiah, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -25,10 +25,14 @@ export default function OrdersScreen({
   user,
   tick,
   onOpenStore,
+  onOpenScan,
+  onTrack,
 }: {
   user: User | null;
   tick: number;
   onOpenStore: (storeId: string) => void;
+  onOpenScan: () => void;
+  onTrack: (order: Order) => void;
 }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("ALL");
@@ -72,9 +76,25 @@ export default function OrdersScreen({
   return (
     <div>
       {/* Header */}
-      <div className="bg-brand-gradient px-5 rounded-b-[2rem] pb-6 pt-8">
-        <h1 className="text-2xl font-extrabold text-white">Pesanan</h1>
-        <p className="mt-0.5 text-xs text-teal-50/85">Riwayat jajanmu, dipisah per UMKM</p>
+      <div className="relative overflow-hidden rounded-b-[2rem] bg-brand-gradient px-5 pb-6 pt-8">
+        <motion.div
+          className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-white/10"
+          animate={{ y: [0, 10, 0] }}
+          transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
+        />
+        <div className="relative z-10 flex items-start justify-between">
+          <div>
+            <h1 className="text-2xl font-extrabold text-white">Pesanan</h1>
+            <p className="mt-0.5 text-xs text-teal-50/85">Riwayat jajanmu, dipisah per UMKM</p>
+          </div>
+          <button
+            onClick={onOpenScan}
+            className="press flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-2 text-[11px] font-extrabold text-white backdrop-blur hover:bg-white/25"
+            aria-label="Scan barcode pesanan"
+          >
+            <ScanLine className="h-4 w-4" /> Scan
+          </button>
+        </div>
       </div>
 
       {/* Tabs */}
@@ -189,25 +209,36 @@ export default function OrdersScreen({
                 </div>
 
                 <div className="voucher-notch border-t border-dashed border-teal-100 px-4 py-3">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-center justify-between gap-2">
                     <div>
                       <p className="text-[10px] font-semibold text-muted-foreground">
                         Total · {formatDateTime(order.createdAt)}
                       </p>
                       <p className="text-sm font-extrabold text-foreground">{formatRupiah(order.totalPrice)}</p>
                     </div>
-                    {order.status === "PENDING" && (
-                      <button
-                        onClick={() => cancelOrder(order.id)}
-                        className="press rounded-full border-2 border-red-100 bg-red-50 px-4 py-2 text-xs font-extrabold text-red-500 hover:bg-red-100"
-                      >
-                        Batalkan
-                      </button>
-                    )}
-                    {order.status === "PENDING" && order.paymentMethod === "QRIS" && (
-                      <span className="text-[9px] font-bold text-violet-400">✓ QRIS terbayar</span>
-                    )}
+                    <div className="flex items-center gap-2">
+                      {order.status !== "CANCELLED" && (
+                        <button
+                          onClick={() => onTrack(order)}
+                          className="press flex items-center gap-1.5 rounded-full border-2 border-teal-100 bg-teal-50 px-3.5 py-2 text-xs font-extrabold text-primary hover:bg-teal-100"
+                          aria-label={`Lacak pesanan ${order.code}`}
+                        >
+                          <QrCode className="h-3.5 w-3.5" /> Lacak & Barcode
+                        </button>
+                      )}
+                      {order.status === "PENDING" && (
+                        <button
+                          onClick={() => cancelOrder(order.id)}
+                          className="press rounded-full border-2 border-red-100 bg-red-50 px-3.5 py-2 text-xs font-extrabold text-red-500 hover:bg-red-100"
+                        >
+                          Batalkan
+                        </button>
+                      )}
+                    </div>
                   </div>
+                  {order.status === "PENDING" && order.paymentMethod === "QRIS" && (
+                    <p className="mt-2 text-right text-[9px] font-bold text-violet-400">✓ QRIS terbayar</p>
+                  )}
                 </div>
               </motion.div>
             ))}

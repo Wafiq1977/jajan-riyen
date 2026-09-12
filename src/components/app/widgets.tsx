@@ -1,12 +1,38 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { motion } from "framer-motion";
-import { ShoppingBag, X, Zap, ChevronRight, Timer } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ShoppingBag,
+  ShoppingCart,
+  X,
+  Zap,
+  ChevronRight,
+  Timer,
+  MapPin,
+  Bell,
+  CheckCheck,
+  Navigation,
+} from "lucide-react";
 import QRCodeLib from "qrcode";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerDescription,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
-import { formatRupiah } from "@/lib/format";
-import { cartTotalPrice, cartTotalQty, useCartStore } from "@/lib/app-store";
+import { formatRupiah, formatDateTime } from "@/lib/format";
+import {
+  AREAS,
+  buildNotifications,
+  cartTotalPrice,
+  cartTotalQty,
+  useCartStore,
+  useNotifStore,
+  usePrefsStore,
+} from "@/lib/app-store";
 
 /* ---------------- scroll hook ---------------- */
 
@@ -43,6 +69,258 @@ export function TopBar({
     >
       <div className="flex h-14 items-center justify-between px-5">{children(scrolled)}</div>
     </div>
+  );
+}
+
+/* ---------------- top bar action buttons ---------------- */
+
+/** Keranjang — pojok kanan atas (badge jumlah item). */
+export function CartIconButton({
+  scrolled,
+  onClick,
+}: {
+  scrolled: boolean;
+  onClick: () => void;
+}) {
+  const items = useCartStore((s) => s.items);
+  const qty = cartTotalQty(items);
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "press relative flex h-9 w-9 items-center justify-center rounded-full backdrop-blur transition-colors",
+        scrolled ? "bg-teal-50 text-primary" : "bg-white/15 text-white"
+      )}
+      aria-label={`Keranjang belanja, ${qty} item`}
+    >
+      <ShoppingCart className="h-4 w-4" />
+      <AnimatePresence>
+        {qty > 0 && (
+          <motion.span
+            key={qty}
+            initial={{ scale: 0.4 }}
+            animate={{ scale: 1 }}
+            exit={{ scale: 0 }}
+            className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-amber-400 px-1 text-[9px] font-black text-teal-950"
+            style={scrolled ? { boxShadow: "0 0 0 2px white" } : { boxShadow: "0 0 0 2px rgba(13,148,136,0.9)" }}
+          >
+            {qty}
+          </motion.span>
+        )}
+      </AnimatePresence>
+    </button>
+  );
+}
+
+/** Notifikasi — klik-able, buka sheet notifikasi. */
+export function BellIconButton({
+  scrolled,
+  onClick,
+  unread,
+}: {
+  scrolled: boolean;
+  onClick: () => void;
+  unread: number;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "press relative flex h-9 w-9 items-center justify-center rounded-full backdrop-blur transition-colors",
+        scrolled ? "bg-teal-50 text-primary" : "bg-white/15 text-white"
+      )}
+      aria-label={unread > 0 ? `Notifikasi, ${unread} belum dibaca` : "Notifikasi"}
+    >
+      <Bell className="h-4 w-4" />
+      {unread > 0 && (
+        <motion.span
+          key={unread}
+          initial={{ scale: 0.4 }}
+          animate={{ scale: [1, 1.25, 1] }}
+          className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400"
+          style={scrolled ? { boxShadow: "0 0 0 2px white" } : { boxShadow: "0 0 0 2px rgba(13,148,136,0.9)" }}
+        />
+      )}
+    </button>
+  );
+}
+
+/** Lokasi — klik-able, buka pemilih area. */
+export function AreaButton({
+  scrolled,
+  area,
+  onClick,
+}: {
+  scrolled: boolean;
+  area: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "press flex h-9 min-w-0 items-center gap-1 rounded-full px-3 text-xs font-bold backdrop-blur transition-colors",
+        scrolled ? "bg-teal-50 text-primary" : "bg-white/15 text-white"
+      )}
+      aria-label={`Ubah lokasi, saat ini ${area}`}
+    >
+      <MapPin className="h-3.5 w-3.5 shrink-0" />
+      <span className="max-w-[72px] truncate sm:max-w-[100px]">{area}</span>
+      <span className="text-[9px] opacity-70">▼</span>
+    </button>
+  );
+}
+
+/* ---------------- location picker sheet ---------------- */
+
+export function LocationSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const { area, setArea } = usePrefsStore();
+
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="mx-auto max-w-[430px] rounded-t-[28px]">
+        <div className="px-5 pb-8">
+          <DrawerHeader className="px-0 pb-2 pt-1 text-left">
+            <DrawerTitle className="flex items-center gap-2 text-base">
+              <Navigation className="h-[18px] w-[18px] text-primary" />
+              Pilih Lokasi Jajanmu
+            </DrawerTitle>
+            <DrawerDescription className="text-left text-[11px]">
+              Toko &amp; rekomendasi disesuaikan dengan area yang kamu pilih.
+            </DrawerDescription>
+          </DrawerHeader>
+
+          <div className="grid grid-cols-2 gap-2">
+            {AREAS.map((a) => {
+              const active = a === area;
+              return (
+                <button
+                  key={a}
+                  onClick={() => {
+                    setArea(a);
+                    onOpenChange(false);
+                  }}
+                  className={cn(
+                    "press flex items-center gap-2 rounded-2xl border-2 px-3.5 py-3 text-left transition-all",
+                    active
+                      ? "border-primary bg-teal-50/70 shadow-sm"
+                      : "border-teal-50 bg-white hover:border-teal-200"
+                  )}
+                  aria-pressed={active}
+                >
+                  <MapPin className={cn("h-4 w-4 shrink-0", active ? "text-primary" : "text-slate-300")} />
+                  <span className={cn("truncate text-xs font-extrabold", active ? "text-primary" : "text-foreground")}>
+                    {a}
+                  </span>
+                  {active && <CheckCheck className="ml-auto h-3.5 w-3.5 shrink-0 text-primary" />}
+                </button>
+              );
+            })}
+          </div>
+
+          <p className="mt-4 flex items-start gap-2 rounded-2xl bg-emerald-50/70 p-3 text-[10px] font-medium leading-relaxed text-emerald-700">
+            <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Lokasi disimulasikan untuk demo — pilih area terdekat agar rekomendasi lebih relevan.
+          </p>
+        </div>
+      </DrawerContent>
+    </Drawer>
+  );
+}
+
+/* ---------------- notifications sheet ---------------- */
+
+export function NotificationSheet({
+  open,
+  onOpenChange,
+  onOpenOrders,
+  onOpenFlashSale,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  onOpenOrders: () => void;
+  onOpenFlashSale: () => void;
+}) {
+  const orders = useNotifStore((s) => s.orders);
+  const markRead = useNotifStore((s) => s.markRead);
+  const notifs = buildNotifications(orders);
+
+  useEffect(() => {
+    if (open) markRead();
+  }, [open, markRead]);
+
+  return (
+    <Drawer open={open} onOpenChange={onOpenChange}>
+      <DrawerContent className="mx-auto max-w-[430px] rounded-t-[28px]">
+        <div className="px-5 pb-8">
+          <DrawerHeader className="px-0 pb-2 pt-1 text-left">
+            <DrawerTitle className="flex items-center gap-2 text-base">
+              <Bell className="h-[18px] w-[18px] text-primary" />
+              Notifikasi
+            </DrawerTitle>
+            <DrawerDescription className="text-left text-[11px]">
+              Update pesanan &amp; promo terbaru buat kamu.
+            </DrawerDescription>
+          </DrawerHeader>
+
+          {notifs.length === 0 ? (
+            <p className="py-10 text-center text-xs text-muted-foreground">Belum ada notifikasi.</p>
+          ) : (
+            <div className="pretty-scroll max-h-[56vh] space-y-2 overflow-y-auto pr-1">
+              {notifs.slice(0, 12).map((n) => (
+                <button
+                  key={n.id}
+                  onClick={() => {
+                    onOpenChange(false);
+                    if (n.kind === "order") onOpenOrders();
+                    else onOpenFlashSale();
+                  }}
+                  className="press flex w-full items-start gap-3 rounded-2xl border border-teal-50 bg-white p-3 text-left card-soft hover:border-teal-100"
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-base">
+                    {n.emoji}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="truncate text-xs font-extrabold text-foreground">{n.title}</span>
+                      {n.kind === "order" && n.orderStatus && (
+                        <span
+                          className={cn(
+                            "shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black",
+                            n.orderStatus === "COMPLETED"
+                              ? "bg-emerald-50 text-emerald-600"
+                              : n.orderStatus === "PROCESSING"
+                                ? "bg-teal-50 text-teal-600"
+                                : n.orderStatus === "CANCELLED"
+                                  ? "bg-red-50 text-red-400"
+                                  : "bg-amber-50 text-amber-600"
+                          )}
+                        >
+                          {n.orderStatus === "PENDING"
+                            ? "BARU"
+                            : n.orderStatus === "PROCESSING"
+                              ? "DIPROSES"
+                              : n.orderStatus === "COMPLETED"
+                                ? "SELESAI"
+                                : "BATAL"}
+                        </span>
+                      )}
+                    </span>
+                    <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-muted-foreground">
+                      {n.body}
+                    </span>
+                    <span className="mt-1 block text-[9px] font-semibold text-slate-300">
+                      {formatDateTime(n.at)}
+                    </span>
+                  </span>
+                  <ChevronRight className="mt-3 h-3.5 w-3.5 shrink-0 text-slate-300" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </DrawerContent>
+    </Drawer>
   );
 }
 
@@ -91,15 +369,21 @@ export function QrisPanel({
   merchantId,
   description,
   amount,
+  sellerQris,
 }: {
   merchantName: string;
   merchantId: string;
   description: string;
   amount: number;
+  /** QRIS milik penjual (gambar yang diunggah + kode merchant) */
+  sellerQris?: { imageUrl: string | null; code: string | null } | null;
 }) {
   const [qr, setQr] = useState<string | null>(null);
 
+  const useSellerImage = Boolean(sellerQris?.imageUrl);
+
   useEffect(() => {
+    if (useSellerImage) return;
     let alive = true;
     const payload = [
       "JRPAY",
@@ -120,7 +404,7 @@ export function QrisPanel({
     return () => {
       alive = false;
     };
-  }, [merchantName, merchantId, description, amount]);
+  }, [merchantName, merchantId, description, amount, useSellerImage]);
 
   return (
     <div className="mt-3 rounded-3xl border border-violet-100 bg-gradient-to-b from-violet-50/70 to-white p-5 text-center">
@@ -128,10 +412,20 @@ export function QrisPanel({
         <span className="rounded-md bg-violet-600 px-2 py-0.5 text-[10px] font-black tracking-widest text-white">
           QRIS
         </span>
-        <span className="text-[10px] font-bold text-violet-500">1 QRIS untuk semua aplikasi pembayaran</span>
+        <span className="text-[10px] font-bold text-violet-500">
+          {useSellerImage ? `QRIS resmi ${merchantName}` : "1 QRIS untuk semua aplikasi pembayaran"}
+        </span>
       </div>
       <div className="mx-auto mt-3 w-fit rounded-2xl border-2 border-violet-200 bg-white p-3 shadow-inner">
-        {qr ? (
+        {useSellerImage ? (
+          <motion.img
+            initial={{ opacity: 0, scale: 0.92 }}
+            animate={{ opacity: 1, scale: 1 }}
+            src={sellerQris!.imageUrl!}
+            alt={`Kode QRIS ${merchantName}`}
+            className="h-40 w-40 rounded-lg object-contain sm:h-44 sm:w-44"
+          />
+        ) : qr ? (
           <motion.img
             initial={{ opacity: 0, scale: 0.9 }}
             animate={{ opacity: 1, scale: 1 }}
@@ -145,6 +439,12 @@ export function QrisPanel({
           </div>
         )}
       </div>
+      {sellerQris?.code && (
+        <div className="mx-auto mt-3 flex w-fit items-center gap-2 rounded-full bg-white px-3.5 py-1.5 shadow-sm">
+          <span className="text-[9px] font-bold uppercase tracking-wider text-violet-400">NMID</span>
+          <span className="font-mono text-[11px] font-black tracking-wider text-slate-600">{sellerQris.code}</span>
+        </div>
+      )}
       <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-violet-600">
         <ScanLineIcon />
         Scan pakai GoPay, OVO, DANA, m-Banking
@@ -169,7 +469,7 @@ function ScanLineIcon() {
   );
 }
 
-/* ---------------- floating cart bar ---------------- */
+/* ---------------- floating cart bar (store screen checkout shortcut) ---------------- */
 
 export function CartBar({
   onOpen,

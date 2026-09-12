@@ -16,6 +16,7 @@ import {
 import type { Product, Store } from "@/lib/types";
 import { formatRupiah, discountPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -87,14 +88,29 @@ export default function StoreScreen({
 
   return (
     <div className="pb-24">
-      {/* Hero header */}
-      <div className="relative bg-brand-gradient px-5 rounded-b-[2rem] overflow-hidden pb-16 pt-6">
+      {/* Hero header — banner foto latar di belakang nama toko */}
+      <div className="relative rounded-b-[2rem] overflow-hidden pb-16 pt-6">
+        {store?.bannerUrl && (
+          <img
+            src={store.bannerUrl}
+            alt={`Banner ${store.name}`}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+        <div
+          className={cn(
+            "absolute inset-0",
+            store?.bannerUrl
+              ? "bg-gradient-to-t from-slate-950/75 via-slate-950/35 to-slate-950/30"
+              : "bg-brand-gradient"
+          )}
+        />
         <motion.div
           className="absolute -right-10 -bottom-16 h-48 w-48 rounded-full bg-white/10"
           animate={{ y: [0, -10, 0] }}
           transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
         />
-        <div className="relative z-10">
+        <div className="relative z-10 px-5">
           <button
             onClick={onBack}
             className="press flex h-10 w-10 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
@@ -104,13 +120,19 @@ export default function StoreScreen({
           </button>
         </div>
         {store && (
-          <div className="relative z-10 mt-4 flex items-center gap-3">
-            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-3xl bg-white text-3xl shadow-lg">
-              {store.category === "Minuman" ? "🧋" : store.category === "Dessert" ? "🍰" : "🍛"}
+          <div className="relative z-10 mt-4 flex items-center gap-3 px-5">
+            <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-3xl bg-white shadow-lg">
+              {store.logoUrl ? (
+                <img src={store.logoUrl} alt={`Logo ${store.name}`} className="h-full w-full object-cover" />
+              ) : (
+                <span className="flex h-full w-full items-center justify-center text-3xl">
+                  {store.category === "Minuman" ? "🧋" : store.category === "Dessert" ? "🍰" : "🍛"}
+                </span>
+              )}
             </div>
             <div className="min-w-0">
-              <h1 className="truncate text-xl font-extrabold text-white">{store.name}</h1>
-              <div className="mt-1 flex items-center gap-2 text-xs text-teal-50/90">
+              <h1 className="truncate text-xl font-extrabold text-white drop-shadow-sm">{store.name}</h1>
+              <div className="mt-1 flex items-center gap-2 text-xs text-teal-50/90 drop-shadow">
                 <Stars rating={store.rating} className="text-amber-300" />
                 <span>·</span>
                 <span>{store.category}</span>
@@ -138,6 +160,11 @@ export default function StoreScreen({
                 <span className="inline-flex items-center gap-1 rounded-full bg-teal-50 px-2.5 py-1 font-bold text-teal-700">
                   <Star className="h-3 w-3 fill-amber-400 text-amber-400" /> {store.rating.toFixed(1)} rating
                 </span>
+                {store.qrisEnabled && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-violet-50 px-2.5 py-1 font-bold text-violet-600">
+                    🔳 Terima QRIS
+                  </span>
+                )}
               </div>
               {store.description && (
                 <p className="mt-3 text-xs leading-relaxed text-muted-foreground">{store.description}</p>

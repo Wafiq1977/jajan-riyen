@@ -23,6 +23,11 @@ export interface Store {
   category: string;
   description: string | null;
   address: string | null;
+  logoUrl: string | null;
+  bannerUrl: string | null;
+  qrisEnabled: boolean;
+  qrisImageUrl: string | null;
+  qrisCode: string | null;
   rating: number;
   distanceKm: number;
   isOpen: boolean;
@@ -61,6 +66,7 @@ export interface Order {
   paymentMethod: PaymentMethod;
   status: OrderStatus;
   createdAt: string;
+  updatedAt?: string;
   store: Store;
   user?: { id: string; phone: string; name: string | null };
 }

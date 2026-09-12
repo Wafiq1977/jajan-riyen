@@ -19,21 +19,26 @@ model User {
 }
 
 model Store {
-  id          String   @id @default(cuid())
-  userId      String   @unique
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  name        String
-  category    String   @default("Makanan")
-  description String?
-  address     String?
-  rating      Float    @default(4.8)
-  distanceKm  Float    @default(0.5)
-  isOpen      Boolean  @default(true)
-  openTime    String   @default("08:00")
-  closeTime   String   @default("21:00")
-  createdAt   DateTime @default(now())
-  products    Product[]
-  orders      Order[]
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name         String
+  category     String   @default("Makanan")
+  description  String?
+  address      String?
+  logoUrl      String?
+  bannerUrl    String?
+  qrisEnabled  Boolean  @default(false)
+  qrisImageUrl String?
+  qrisCode     String?
+  rating       Float    @default(4.8)
+  distanceKm   Float    @default(0.5)
+  isOpen       Boolean  @default(true)
+  openTime     String   @default("08:00")
+  closeTime    String   @default("21:00")
+  createdAt    DateTime @default(now())
+  products     Product[]
+  orders       Order[]
 }
 
 model Product {

@@ -6,7 +6,8 @@ import { Search, MapPin, ChevronRight, Zap, LayoutGrid, Percent, TrendingUp, Nav
 import type { Store } from "@/lib/types";
 import { formatRupiah } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { TopBar } from "../widgets";
+import { usePrefsStore } from "@/lib/app-store";
+import { TopBar, AreaButton, BellIconButton, CartIconButton } from "../widgets";
 import { Stars, EmptyState, SkeletonList } from "../shared";
 
 const CIRCLES = [
@@ -44,16 +45,25 @@ const QUICK: { key: QuickFilter; label: string; sub: string; grad: string; icon:
 ];
 
 export default function ExploreScreen({
+  unreadCount,
   onOpenStore,
   onOpenFlashSale,
+  onOpenLocation,
+  onOpenNotifications,
+  onOpenCart,
 }: {
+  unreadCount: number;
   onOpenStore: (storeId: string) => void;
   onOpenFlashSale: () => void;
+  onOpenLocation: () => void;
+  onOpenNotifications: () => void;
+  onOpenCart: () => void;
 }) {
   const [stores, setStores] = useState<Store[] | null>(null);
   const [query, setQuery] = useState("");
   const [circle, setCircle] = useState("");
   const [quick, setQuick] = useState<QuickFilter>("");
+  const area = usePrefsStore((s) => s.area);
 
   useEffect(() => {
     let alive = true;
@@ -126,15 +136,11 @@ export default function ExploreScreen({
                 )}
               />
             </div>
-            <button
-              className={cn(
-                "press flex h-9 items-center gap-1 rounded-full px-3 text-xs font-bold backdrop-blur transition-colors",
-                scrolled ? "bg-teal-50 text-primary" : "bg-white/15 text-white"
-              )}
-            >
-              <MapPin className="h-3.5 w-3.5" />
-              Banaran ▾
-            </button>
+            <div className="flex shrink-0 items-center gap-2">
+              <AreaButton scrolled={scrolled} area={area} onClick={onOpenLocation} />
+              <BellIconButton scrolled={scrolled} unread={unreadCount} onClick={onOpenNotifications} />
+              <CartIconButton scrolled={scrolled} onClick={onOpenCart} />
+            </div>
           </>
         )}
       </TopBar>
@@ -305,7 +311,12 @@ export default function ExploreScreen({
                   className="press overflow-hidden rounded-3xl border border-teal-50 bg-white text-left card-soft"
                 >
                   <div className="relative h-28 w-full">
-                    {cover && (cover.imageUrl || cover.emoji) ? (
+                    {store.bannerUrl ? (
+                      <>
+                        <img src={store.bannerUrl} alt={`Banner ${store.name}`} className="h-full w-full object-cover" loading="lazy" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/25 to-transparent" />
+                      </>
+                    ) : cover && (cover.imageUrl || cover.emoji) ? (
                       <ProductThumbInline
                         imageUrl={cover.imageUrl}
                         emoji={cover.emoji}

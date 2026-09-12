@@ -2,9 +2,15 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Home, ReceiptText, UserRound, Compass, ShoppingCart } from "lucide-react";
-import { useAppStore, useCartStore, cartTotalQty } from "@/lib/app-store";
-import type { User } from "@/lib/types";
+import { Home, ReceiptText, UserRound, Compass } from "lucide-react";
+import {
+  useAppStore,
+  useCartStore,
+  useNotifStore,
+  buildNotifications,
+  cartTotalQty,
+} from "@/lib/app-store";
+import type { Order, User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import SplashScreen from "./screens/splash-screen";
 import LoginScreen from "./screens/login-screen";
@@ -20,7 +26,8 @@ import SuccessScreen from "./screens/success-screen";
 import FlashSaleScreen from "./screens/flash-sale-screen";
 import SellerFormScreen from "./screens/seller-form-screen";
 import SellerDashboardScreen from "./screens/seller-dashboard-screen";
-import { CartBar, FlashSalePopup } from "./widgets";
+import { LocationSheet, NotificationSheet, FlashSalePopup } from "./widgets";
+import { ScanDialog, TrackSheet } from "./order-widgets";
 
 export type Screen =
   | { name: "home" }
@@ -55,9 +62,24 @@ export default function JrApp() {
   const [orderTick, setOrderTick] = useState(0);
   const bumpOrders = useCallback(() => setOrderTick((t) => t + 1), []);
 
-  // Cart badge
+  // Sheets & dialogs
+  const [locationOpen, setLocationOpen] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [trackOrder, setTrackOrder] = useState<Order | null>(null);
+
+  // Cart badge (top-right icon)
   const cartItems = useCartStore((s) => s.items);
   const cartQty = cartTotalQty(cartItems);
+
+  // Notifications (derived from orders)
+  const setNotifOrders = useNotifStore((s) => s.setOrders);
+  const notifOrders = useNotifStore((s) => s.orders);
+  const lastRead = useNotifStore((s) => s.lastRead);
+  const unreadCount = useMemo(
+    () => buildNotifications(notifOrders).filter((n) => new Date(n.at) > new Date(lastRead)).length,
+    [notifOrders, lastRead]
+  );
 
   useEffect(() => {
     const t1 = setTimeout(() => setHydrated(true), 0);
@@ -78,6 +100,24 @@ export default function JrApp() {
       })
       .catch(() => {});
   }, [hydrated, setUser, user?.id]);
+
+  // Refresh orders → notification feed
+  useEffect(() => {
+    if (!hydrated || !user) {
+      setNotifOrders([]);
+      return;
+    }
+    let alive = true;
+    fetch(`/api/orders?userId=${user.id}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => {
+        if (alive) setNotifOrders((data?.orders as Order[]) ?? []);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [hydrated, user?.id, orderTick, setNotifOrders, user]);
 
   // Trigger popup once per session when user is on beranda after login
   useEffect(() => {
@@ -115,15 +155,15 @@ export default function JrApp() {
 
   const isTab = useMemo(() => TAB_SCREENS.includes(screen.name), [screen]);
 
+  // Keranjang pindah ke pojok kanan atas → nav hanya 4 tab
   const navItems = useMemo(
     () => [
       { key: "home", label: "Beranda", icon: Home, screen: { name: "home" } as Screen },
       { key: "explore", label: "Jelajahi", icon: Compass, screen: { name: "explore" } as Screen },
-      { key: "cart", label: "Keranjang", icon: ShoppingCart, screen: { name: "cart" } as Screen, badge: cartQty },
       { key: "orders", label: "Pesanan", icon: ReceiptText, screen: { name: "orders" } as Screen },
       { key: "account", label: "Akun", icon: UserRound, screen: { name: "account" } as Screen },
     ],
-    [cartQty]
+    []
   );
 
   const screenKey = useMemo(() => {
@@ -141,21 +181,31 @@ export default function JrApp() {
     }
   }, [screen]);
 
+  const openCart = useCallback(() => goTab({ name: "cart" }), [goTab]);
+
   const renderScreen = () => {
     switch (screen.name) {
       case "home":
         return (
           <HomeScreen
             user={user}
+            unreadCount={unreadCount}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
             onOpenFlashSale={() => push({ name: "flash-sale" })}
+            onOpenLocation={() => setLocationOpen(true)}
+            onOpenNotifications={() => setNotifOpen(true)}
+            onOpenCart={openCart}
           />
         );
       case "explore":
         return (
           <ExploreScreen
+            unreadCount={unreadCount}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
             onOpenFlashSale={() => push({ name: "flash-sale" })}
+            onOpenLocation={() => setLocationOpen(true)}
+            onOpenNotifications={() => setNotifOpen(true)}
+            onOpenCart={openCart}
           />
         );
       case "cart":
@@ -179,6 +229,8 @@ export default function JrApp() {
             user={user}
             tick={orderTick}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
+            onOpenScan={() => setScanOpen(true)}
+            onTrack={(order) => setTrackOrder(order)}
           />
         );
       case "account":
@@ -190,6 +242,7 @@ export default function JrApp() {
             onSellerForm={() => push({ name: "seller-form" })}
             onSellerDashboard={() => push({ name: "seller" })}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
+            onOpenScan={() => setScanOpen(true)}
             onLoggedOut={() => {
               setUser(null);
               clearCart();
@@ -203,6 +256,7 @@ export default function JrApp() {
             user={user}
             onBack={back}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
+            onUserRefreshed={(u) => setUser(u)}
           />
         );
       case "flash-sale":
@@ -220,7 +274,7 @@ export default function JrApp() {
             onOpenProduct={(productId) =>
               push({ name: "product", productId, storeId: screen.storeId })
             }
-            onOpenCart={() => goTab({ name: "cart" })}
+            onOpenCart={openCart}
           />
         );
       case "product":
@@ -281,9 +335,6 @@ export default function JrApp() {
     exit: (dir: number) => ({ x: dir === 0 ? 0 : dir > 0 ? -80 : 80, opacity: 0 }),
   };
 
-  const showCartBar =
-    user && isTab && screen.name !== "cart" && cartQty > 0;
-
   return (
     <div className="min-h-screen bg-brand-radial flex justify-center">
       <div className="w-full max-w-[430px] bg-background min-h-screen relative shadow-[0_0_60px_-15px_rgba(13,148,136,0.25)]">
@@ -302,12 +353,7 @@ export default function JrApp() {
           </motion.main>
         </AnimatePresence>
 
-        {/* Floating cart bar (above bottom nav) */}
-        <AnimatePresence>
-          {showCartBar && <CartBar onOpen={() => goTab({ name: "cart" })} aboveNav />}
-        </AnimatePresence>
-
-        {/* Bottom navigation — buyer only; seller dashboard is a separate page */}
+        {/* Bottom navigation — buyer only; keranjang kini ikon pojok kanan atas */}
         {user && isTab && (
           <motion.nav
             initial={{ y: 90 }}
@@ -351,16 +397,6 @@ export default function JrApp() {
                           >
                             <Icon className="h-[16px] w-[16px]" strokeWidth={active ? 2.4 : 2} />
                           </span>
-                          {!!item.badge && item.badge > 0 && (
-                            <motion.span
-                              key={item.badge}
-                              initial={{ scale: 0.5 }}
-                              animate={{ scale: 1 }}
-                              className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white ring-2 ring-white"
-                            >
-                              {item.badge}
-                            </motion.span>
-                          )}
                         </span>
                         {item.label}
                       </button>
@@ -371,6 +407,27 @@ export default function JrApp() {
             </div>
           </motion.nav>
         )}
+
+        {/* Location picker sheet */}
+        <LocationSheet open={locationOpen} onOpenChange={setLocationOpen} />
+
+        {/* Notifications sheet */}
+        <NotificationSheet
+          open={notifOpen}
+          onOpenChange={setNotifOpen}
+          onOpenOrders={() => goTab({ name: "orders" })}
+          onOpenFlashSale={() => push({ name: "flash-sale" })}
+        />
+
+        {/* Order barcode scan dialog */}
+        <ScanDialog
+          open={scanOpen}
+          onOpenChange={setScanOpen}
+          onOrderUpdated={bumpOrders}
+        />
+
+        {/* Track order + barcode bottom sheet */}
+        <TrackSheet order={trackOrder} onClose={() => setTrackOrder(null)} />
 
         {/* Flash sale popup after login */}
         <AnimatePresence>

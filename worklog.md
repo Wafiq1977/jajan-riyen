@@ -90,3 +90,55 @@ Stage Summary:
 - App fully rebranded Jajan Riyen (JR) with all 10 requested features working and browser-verified.
 - Key decisions: OrderItem table for multi-product orders (one transaction per UMKM enforced server-side); cart = single-store client-side with replace-or-cancel conflict UX; seller mode never mixes into buyer navbar (separate dark page via Akun); popup once per browser session.
 - Artifacts: brand.tsx, widgets.tsx (TopBar/QrisPanel/CartBar/FlashSalePopup/countdown), jr-app.tsx, 3 new screens (explore/flash-sale/cart), rewritten screens (home/store/product/checkout/orders/account/seller-dashboard/splash/login), orders API v2 (items[]), schema OrderItem, favicon.svg, flashsale-poster.png.
+
+---
+Task ID: 2-a
+Agent: general-purpose (image generation)
+Task: Generate 5 UMKM banner images for Jajan Riyen store heroes
+
+Work Log:
+- Read worklog.md; confirmed z-ai CLI workflow (1344x768 wide size is CLI-whitelisted, both dims multiples of 32) and the known JPEG-data-with-png-extension quirk.
+- Created directory /home/z/my-project/public/banners (mkdir -p), verified z-ai at /usr/local/bin/z-ai.
+- Generated 5 wide banners sequentially via `z-ai image -p "<prompt>" -o <path> -s 1344x768`: banner-geprek (ayam geprek dusk warung), banner-kopi (coffee shop golden hour), banner-dapur (nasi goreng homey warung), banner-burger (double cheeseburger bokeh), banner-dessert (martabak pastel stall). All succeeded on first attempt with prompts center-framed / warm-moody for white-text overlay.
+- Ran `file` on all 5: all were JPEG data despite .png extension (known CLI quirk). Converted all 5 to true PNG with Python PIL (Pillow) preserving 1344x768.
+- Re-verified with `file` + PIL: all 5 now true PNG (8-bit RGB non-interlaced), 1344x768; sizes 784KB-1.33MB. Sanity brightness check: mean 70-121, stddev 53-60 => real photographic content, darker moody tones for geprek/burger, brighter pastel for dessert, suitable as hero backgrounds behind white store names.
+
+Stage Summary:
+- SUCCESS (5 UMKM store-hero banners, all 1344x768 true PNG):
+  - /home/z/my-project/public/banners/banner-geprek.png (~1.33 MB, warm dusk warung, ayam geprek + sambal)
+  - /home/z/my-project/public/banners/banner-kopi.png (~0.78 MB, golden-hour coffee counter, teal/cream)
+  - /home/z/my-project/public/banners/banner-dapur.png (~1.13 MB, nasi goreng + satay homey warung)
+  - /home/z/my-project/public/banners/banner-burger.png (~1.21 MB, cheeseburger + fries, warm bokeh)
+  - /home/z/my-project/public/banners/banner-dessert.png (~1.20 MB, martabak dessert stall, pastel)
+- No failures; only issue was the documented CLI JPEG-as-.png quirk, fixed via PIL conversion. Note: PNG re-encode raised file sizes from ~90-146KB (JPEG) to 0.78-1.33MB (PNG) — acceptable for hero banners; consider WebP conversion later if payload weight matters.
+
+---
+Task ID: 9 (main)
+Agent: Z.ai Code (main)
+Task: 8 permintaan baru — upload logo/banner/produk UMKM, QRIS penjual opsional, barcode + scan pesanan, keranjang ke pojok kanan atas, lokasi & notifikasi klik-able, logo JR menyatu tanpa latar putih splash
+
+Work Log:
+- Schema: Store += logoUrl, bannerUrl, qrisEnabled(default false), qrisImageUrl, qrisCode. db:push + regen client + RESTART dev server (stale client issue seperti sebelumnya). Reseed: 5 toko demo kini punya logoUrl (product images), bannerUrl (/banners/*.png), Geprek Bu Rina qrisEnabled + /qris-demo/qris-bu-rina.png (dibuat via qrcode lib) + qrisCode ID10203340056781.
+- Task 2-a (subagent, paralel): generate 5 banner UMKM 1344x768 di public/banners/ (geprek/kopi/dapur/burger/dessert), JPEG->PNG dikonversi, worklog dicatat.
+- API baru: POST /api/upload (multipart, validasi tipe & max 5MB, simpan public/uploads/, return url); PATCH /api/seller/store (update logoUrl/bannerUrl/qrisEnabled/qrisImageUrl/qrisCode + validasi QRIS butuh gambar/kode, return user fresh); GET /api/orders/[id] (baru, untuk success screen); GET /api/orders/code/[code] (lookup JR-XXXXXX utk scan). seller/register kini terima logoUrl/bannerUrl.
+- brand.tsx v2: JrMark digambar PATH murni — J hook menyatu ke stem R (ligature satu garis) + daun di puncak J; splash pakai mark putih langsung di gradient (kartu putih DIHAPUS); favicon.svg & logo.svg diganti desain sama.
+- widgets.tsx: CartIconButton (ikon keranjang + badge, pojok kanan atas), BellIconButton (dot unread), AreaButton (nama area + ▾) — dipakai Home & Explore TopBar; LocationSheet (Drawer, 8 area, persist usePrefsStore); NotificationSheet (feed buildNotifications dari orders + promo, klik → pesanan/flash sale, markRead saat buka); QrisPanel + sellerQris prop (tampilkan gambar QRIS penjual + chip NMID).
+- order-widgets.tsx baru: Barcode (JsBarcode CODE128), OrderTrackCard (barcode + timeline PENDING→PROCESSING→COMPLETED + ringkasan), TrackSheet (Drawer "Lacak & Barcode"), ScanDialog (html5-qrcode kamera + fallback manual "Kamera tidak tersedia", parse regex JR-code, lookup /api/orders/code, mode penjual: tombol Terima/Selesai cepat bila order dari toko sendiri).
+- app-store.ts: usePrefsStore (area, persist), useNotifStore (orders + lastRead), buildNotifications().
+- jr-app: nav 4 tab (Keranjang tab DIHAPUS), CartBar global dihapus (tetap ada di store screen sebagai checkout shortcut), refresh orders → notif store, sheet/dialog state global, ScanDialog + TrackSheet global.
+- Home/Explore: 3 tombol top bar (lokasi klik-able, notifikasi klik-able, keranjang badge); kartu toko pakai logoUrl (home) & bannerUrl cover (explore).
+- Store screen: hero = banner image + overlay gelap di belakang nama toko + logo img + chip "Terima QRIS" bila aktif.
+- Checkout & Cart: QRIS hanya bisa dipilih bila store.qrisEnabled (kartu disabled + keterangan "Penjual belum aktifkan"); QrisPanel menampilkan QRIS milik penjual; cart fetch store by cart.storeId.
+- Success screen: fetch order by id → kode asli + barcode Code128 + copy + tombol "Lihat & Lacak".
+- Orders: header tombol "Scan"; tiap kartu tombol "Lacak & Barcode" → TrackSheet; barcode disembunyikan utk order CANCELLED.
+- Seller form: section "Logo & Banner Toko" (ImageUploader logo + banner) → dikirim ke register API; benefit list + QRIS.
+- Seller dashboard: header pakai banner bg + logo img; tab baru "Toko" (StoreSettingsTab): Switch QRIS + ImageUploader gambar QRIS + input NMID + Simpan (PATCH, "Tersimpan!"); edit logo/banner; tombol "Scan Barcode Pembeli" di tab Pesanan; AddProductDialog + ImageUploader foto produk.
+- upload.tsx: ImageUploader (variant logo/banner/image/qris, preview, hapus, loading, error).
+- FIX saat verifikasi: field QRIS awalnya gated di balik switch (chicken-and-egg) → dibuat selalu tampil; switch divalidasi saat save via API.
+- Verifikasi agent-browser (400x850 + 360x740 + 1280x800): splash tanpa kartu putih; login OTP; popup flash sale; top bar kanan-atas (area/bell/cart); sheet lokasi (ganti Banyumanik → TopBar update); sheet notifikasi (promo + order BARU); toko Geprek: banner belakang nama + logo + badge QRIS; checkout QRIS menampilkan QRIS penjual + NMID; order JR-TB6834 → success barcode Code128; TrackSheet timeline; ScanDialog fallback manual → temukan pesanan; daftar penjual "Warung Sate Pak Slamet" + upload logo(sate) & banner (terunggah ke /uploads, preview benar); dashboard banner+logo; QRIS toggle menolak tanpa data → upload QRIS + kode + aktif + tersimpan; tambah produk dengan foto (tersimpan, tampil); etalase toko baru benar; beli produk sendiri QRIS → JR-Y39M7Q; scan sisi penjual → "Terima Pesanan Ini" → status Diproses real-time; cart QRIS disabled di toko tanpa QRIS; notifikasi order BARU muncul; desktop frame center; 360px responsif. Console bersih, dev.log tanpa error.
+- Lint 0/0; tsc bersih (app code).
+
+Stage Summary:
+- Semua 8 permintaan selesai & terverifikasi browser: (1) upload logo UMKM, (2) upload banner latar nama toko, (3) upload foto produk, (4) QRIS penjual opsional (gambar+kode, gating per toko di checkout/keranjang), (5) barcode Code128 + scan kamera/manual + lacak timeline + aksi penjual, (6) keranjang ikon pojok kanan atas (tab nav dihapus), (7) lokasi & notifikasi klik-able (sheet + persist), (8) logo JR ligature menyatu + splash tanpa latar putih.
+- Keputusan kunci: upload disimpan ke public/uploads via API (bukan base64 di DB); notifikasi = feed turunan orders (tanpa tabel baru); scan = html5-qrcode dengan fallback input manual (kamera sandbox tak tersedia); QRIS penjual bersifat opt-in per toko.
+- Artefak: api/upload, api/seller/store, api/orders/code/[code], GET api/orders/[id], order-widgets.tsx, upload.tsx, widgets.tsx v2, brand.tsx v2, app-store v3, semua screen diperbarui, seed+banner aset, favicon/logo.svg baru.

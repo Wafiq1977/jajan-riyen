@@ -16,6 +16,7 @@ import {
   CircleUserRound,
   LayoutDashboard,
   ShoppingCart,
+  ScanLine,
 } from "lucide-react";
 import {
   Dialog,
@@ -48,6 +49,7 @@ export default function AccountScreen({
   onSellerForm,
   onSellerDashboard,
   onOpenStore,
+  onOpenScan,
   onLoggedOut,
 }: {
   user: User | null;
@@ -56,6 +58,7 @@ export default function AccountScreen({
   onSellerForm: () => void;
   onSellerDashboard: () => void;
   onOpenStore: (storeId: string) => void;
+  onOpenScan: () => void;
   onLoggedOut: () => void;
 }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -189,6 +192,11 @@ export default function AccountScreen({
             icon={<ShoppingCart className="h-[18px] w-[18px]" />}
             label="Keranjang Belanja"
             onClick={() => onGoTab("cart")}
+          />
+          <MenuItem
+            icon={<ScanLine className="h-[18px] w-[18px]" />}
+            label="Scan Barcode Pesanan"
+            onClick={onOpenScan}
           />
           <MenuItem icon={<ReceiptText className="h-[18px] w-[18px]" />} label="Pesanan Saya" onClick={() => onGoTab("orders")} />
           {user.isSeller && user.store && (

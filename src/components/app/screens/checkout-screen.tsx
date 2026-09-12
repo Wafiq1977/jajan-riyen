@@ -188,12 +188,20 @@ export default function CheckoutScreen({
           />
           <MethodCard
             active={method === "QRIS"}
-            onClick={() => setMethod("QRIS")}
+            onClick={() => store?.qrisEnabled && setMethod("QRIS")}
+            disabled={!!store && !store.qrisEnabled}
             icon={<QrCode className="h-6 w-6" />}
             title="QRIS"
-            subtitle="Scan & bayar"
+            subtitle={store && !store.qrisEnabled ? "Penjual belum aktifkan" : "Scan & bayar"}
           />
         </div>
+
+        {store && !store.qrisEnabled && (
+          <p className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
+            <QrCode className="h-3 w-3" />
+            {store.name} belum mengaktifkan pembayaran QRIS — silakan pilih Tunai.
+          </p>
+        )}
 
         {method === "QRIS" && product && store && (
           <QrisPanel
@@ -201,6 +209,7 @@ export default function CheckoutScreen({
             merchantId={store.id}
             description={product.name}
             amount={total}
+            sellerQris={store.qrisEnabled ? { imageUrl: store.qrisImageUrl, code: store.qrisCode } : null}
           />
         )}
 
@@ -273,23 +282,29 @@ function MethodCard({
   icon,
   title,
   subtitle,
+  disabled,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   title: string;
   subtitle: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "press relative rounded-3xl border-2 p-4 text-left transition-all",
         active
           ? "border-primary bg-teal-50/60 shadow-md shadow-teal-500/15"
-          : "border-border bg-white hover:border-teal-200"
+          : disabled
+            ? "cursor-not-allowed border-border bg-slate-50 opacity-60"
+            : "border-border bg-white hover:border-teal-200"
       )}
       aria-pressed={active}
+      aria-disabled={disabled}
     >
       {active && (
         <motion.span
@@ -299,7 +314,12 @@ function MethodCard({
           <CheckCircle2 className="h-3.5 w-3.5" />
         </motion.span>
       )}
-      <span className={cn("block w-fit rounded-2xl p-2", active ? "bg-primary text-white" : "bg-teal-50 text-primary")}>
+      <span
+        className={cn(
+          "block w-fit rounded-2xl p-2",
+          active ? "bg-primary text-white" : disabled ? "bg-slate-100 text-slate-400" : "bg-teal-50 text-primary"
+        )}
+      >
         {icon}
       </span>
       <p className="mt-2 text-sm font-extrabold text-foreground">{title}</p>

@@ -3,7 +3,7 @@ import { db } from "@/lib/db";
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, name, category, description, address } = await req.json();
+    const { userId, name, category, description, address, logoUrl, bannerUrl } = await req.json();
 
     if (!userId || !name || typeof name !== "string") {
       return NextResponse.json({ error: "Nama toko wajib diisi" }, { status: 400 });
@@ -25,6 +25,8 @@ export async function POST(req: NextRequest) {
           category: category || "Makanan",
           description: description?.trim() || null,
           address: address?.trim() || null,
+          logoUrl: typeof logoUrl === "string" && logoUrl ? logoUrl : null,
+          bannerUrl: typeof bannerUrl === "string" && bannerUrl ? bannerUrl : null,
         },
       }),
       db.user.update({ where: { id: userId }, data: { isSeller: true } }),

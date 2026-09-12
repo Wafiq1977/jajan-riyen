@@ -23,16 +23,16 @@ export default function SplashScreen() {
         transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
       />
 
-      {/* JR logo card */}
+      {/* JR logo — connected monogram directly on the gradient, no white card */}
       <motion.div
         initial={{ scale: 0.5, opacity: 0, rotate: -8 }}
         animate={{ scale: 1, opacity: 1, rotate: 0 }}
         transition={{ type: "spring", stiffness: 260, damping: 18 }}
-        className="relative z-10 flex h-28 w-28 items-center justify-center rounded-[30px] bg-white shadow-2xl shadow-teal-900/25"
+        className="relative z-10"
       >
-        <JrMark className="h-24 w-24" />
+        <JrMark className="h-32 w-32 drop-shadow-[0_18px_35px_rgba(0,0,0,0.28)]" ink="#ffffff" leaf="#6ee7a0" />
         <motion.span
-          className="absolute -right-2.5 -top-2.5 rounded-full bg-amber-400 px-2 py-1 text-[9px] font-black text-teal-950 shadow-lg"
+          className="absolute -right-3 -top-1 rounded-full bg-amber-400 px-2 py-1 text-[9px] font-black text-teal-950 shadow-lg"
           initial={{ scale: 0 }}
           animate={{ scale: [0, 1.25, 1] }}
           transition={{ delay: 0.7, duration: 0.5 }}

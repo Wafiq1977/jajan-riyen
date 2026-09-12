@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Minus,
@@ -13,7 +13,7 @@ import {
   Store as StoreIcon,
   MapPin,
 } from "lucide-react";
-import type { PaymentMethod, User } from "@/lib/types";
+import type { PaymentMethod, Store, User } from "@/lib/types";
 import { formatRupiah, discountPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,25 @@ export default function CartScreen({
   const [method, setMethod] = useState<PaymentMethod>("TUNAI");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [store, setStore] = useState<Store | null>(null);
+
+  // Fetch toko keranjang — untuk cek QRIS penjual
+  useEffect(() => {
+    if (!storeId) {
+      setStore(null);
+      return;
+    }
+    let alive = true;
+    fetch(`/api/stores/${storeId}`)
+      .then((r) => r.json())
+      .then((data) => alive && setStore((data.store as Store) ?? null))
+      .catch(() => alive && setStore(null));
+    return () => {
+      alive = false;
+    };
+  }, [storeId]);
+
+  const qrisAvailable = Boolean(store?.qrisEnabled);
 
   const total = useMemo(() => cartTotalPrice(items), [items]);
   const qty = useMemo(() => cartTotalQty(items), [items]);
@@ -210,12 +229,20 @@ export default function CartScreen({
           />
           <MethodCard
             active={method === "QRIS"}
-            onClick={() => setMethod("QRIS")}
+            onClick={() => qrisAvailable && setMethod("QRIS")}
+            disabled={!qrisAvailable}
             icon={<QrCode className="h-6 w-6" />}
             title="QRIS"
-            subtitle="Scan & bayar"
+            subtitle={qrisAvailable ? "Scan & bayar" : "Penjual belum aktifkan"}
           />
         </div>
+
+        {!qrisAvailable && (
+          <p className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
+            <QrCode className="h-3 w-3" />
+            {storeName ?? "Toko ini"} belum mengaktifkan pembayaran QRIS — silakan pilih Tunai.
+          </p>
+        )}
 
         <AnimatePresence>
           {method === "QRIS" && (
@@ -231,6 +258,7 @@ export default function CartScreen({
                 merchantId={storeId ?? "0000"}
                 description={`${qty} item keranjang`}
                 amount={total}
+                sellerQris={store?.qrisEnabled ? { imageUrl: store.qrisImageUrl, code: store.qrisCode } : null}
               />
             </motion.div>
           )}
@@ -332,23 +360,29 @@ function MethodCard({
   icon,
   title,
   subtitle,
+  disabled,
 }: {
   active: boolean;
   onClick: () => void;
   icon: React.ReactNode;
   title: string;
   subtitle: string;
+  disabled?: boolean;
 }) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={cn(
         "press relative rounded-3xl border-2 p-4 text-left transition-all",
         active
           ? "border-primary bg-teal-50/60 shadow-md shadow-teal-500/15"
-          : "border-border bg-white hover:border-teal-200"
+          : disabled
+            ? "cursor-not-allowed border-border bg-slate-50 opacity-60"
+            : "border-border bg-white hover:border-teal-200"
       )}
       aria-pressed={active}
+      aria-disabled={disabled}
     >
       {active && (
         <motion.span
@@ -358,7 +392,12 @@ function MethodCard({
           <CheckCircle2 className="h-3.5 w-3.5" />
         </motion.span>
       )}
-      <span className={cn("block w-fit rounded-2xl p-2", active ? "bg-primary text-white" : "bg-teal-50 text-primary")}>
+      <span
+        className={cn(
+          "block w-fit rounded-2xl p-2",
+          active ? "bg-primary text-white" : disabled ? "bg-slate-100 text-slate-400" : "bg-teal-50 text-primary"
+        )}
+      >
         {icon}
       </span>
       <p className="mt-2 text-sm font-extrabold text-foreground">{title}</p>
