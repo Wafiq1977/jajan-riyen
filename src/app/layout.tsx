@@ -15,10 +15,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "TOSKA — Marketplace Lokal",
+  title: "Jajan Riyen — Jajan Lokal, Hemat Terus",
   description:
-    "Marketplace lokal simpel: belanja kebutuhan harian, bayar tunai atau QRIS. Daftar jadi penjual langsung dari aplikasi.",
-  keywords: ["TOSKA", "marketplace", "toko online", "QRIS", "tunai", "penjual"],
+    "Marketplace kuliner lokal: jajan kebutuhan makan & minum UMKM sekitar, bayar tunai atau QRIS. Daftar jadi penjual langsung dari aplikasi.",
+  keywords: ["Jajan Riyen", "JR", "marketplace", "UMKM", "kuliner", "QRIS", "tunai", "penjual"],
   icons: { icon: "/favicon.svg" },
 };
 

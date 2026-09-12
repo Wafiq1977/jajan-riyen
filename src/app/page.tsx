@@ -1,5 +1,5 @@
-import ToskaApp from "@/components/app/toska-app";
+import JrApp from "@/components/app/jr-app";
 
 export default function Home() {
-  return <ToskaApp />;
+  return <JrApp />;
 }

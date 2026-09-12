@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { ShoppingBag } from "lucide-react";
+import { JrMark } from "../brand";
 
 export default function SplashScreen() {
   return (
@@ -23,20 +23,21 @@ export default function SplashScreen() {
         transition={{ duration: 7, repeat: Infinity, ease: "easeInOut" }}
       />
 
+      {/* JR logo card */}
       <motion.div
         initial={{ scale: 0.5, opacity: 0, rotate: -8 }}
         animate={{ scale: 1, opacity: 1, rotate: 0 }}
         transition={{ type: "spring", stiffness: 260, damping: 18 }}
-        className="relative z-10 flex h-24 w-24 items-center justify-center rounded-[28px] bg-white shadow-2xl shadow-teal-900/20"
+        className="relative z-10 flex h-28 w-28 items-center justify-center rounded-[30px] bg-white shadow-2xl shadow-teal-900/25"
       >
-        <ShoppingBag className="h-12 w-12 text-primary" strokeWidth={1.8} />
+        <JrMark className="h-24 w-24" />
         <motion.span
-          className="absolute -right-2 -top-2 flex h-8 w-8 items-center justify-center rounded-full bg-amber-400 text-[10px] font-extrabold text-teal-950 shadow-lg"
+          className="absolute -right-2.5 -top-2.5 rounded-full bg-amber-400 px-2 py-1 text-[9px] font-black text-teal-950 shadow-lg"
           initial={{ scale: 0 }}
           animate={{ scale: [0, 1.25, 1] }}
           transition={{ delay: 0.7, duration: 0.5 }}
         >
-          %SALE
+          HEMAT!
         </motion.span>
       </motion.div>
 
@@ -44,9 +45,9 @@ export default function SplashScreen() {
         initial={{ y: 24, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
         transition={{ delay: 0.25, type: "spring", stiffness: 200, damping: 20 }}
-        className="relative z-10 mt-6 text-5xl font-extrabold tracking-tight text-white drop-shadow-sm"
+        className="relative z-10 mt-6 text-4xl font-black tracking-tight text-white drop-shadow-sm"
       >
-        TOSKA
+        Jajan<span className="text-emerald-200">Riyen</span>
       </motion.h1>
 
       <motion.p
@@ -55,7 +56,7 @@ export default function SplashScreen() {
         transition={{ delay: 0.4 }}
         className="relative z-10 mt-2 text-sm font-medium text-teal-50/90"
       >
-        Belanja lokal, hemat terus ✨
+        Jajan lokal, hemat terus ✨
       </motion.p>
 
       <motion.div

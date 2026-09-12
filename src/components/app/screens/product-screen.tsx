@@ -10,10 +10,23 @@ import {
   ChevronRight,
   Zap,
   Package,
+  Plus,
+  ShoppingBag,
 } from "lucide-react";
 import type { Product, Store } from "@/lib/types";
 import { formatRupiah, discountPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useCartStore } from "@/lib/app-store";
 import { ProductThumb, SkeletonList } from "../shared";
 
 export default function ProductScreen({
@@ -30,6 +43,10 @@ export default function ProductScreen({
   const [product, setProduct] = useState<Product | null>(null);
   const [store, setStore] = useState<Store | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [conflict, setConflict] = useState(false);
+  const [added, setAdded] = useState(false);
+
+  const addItem = useCartStore((s) => s.addItem);
 
   useEffect(() => {
     let alive = true;
@@ -50,6 +67,17 @@ export default function ProductScreen({
     };
   }, [productId, storeId]);
 
+  const addToCart = (replace = false) => {
+    if (!product || !store || product.stock <= 0) return;
+    const result = addItem(product, store, replace);
+    if (result === "conflict") {
+      setConflict(true);
+      return;
+    }
+    setAdded(true);
+    setTimeout(() => setAdded(false), 1200);
+  };
+
   if (notFound) {
     return (
       <div className="pt-6">
@@ -64,12 +92,12 @@ export default function ProductScreen({
   const pct = product ? discountPercent(product.price, product.originalPrice) : null;
 
   return (
-    <div className="pb-28">
+    <div className="pb-32">
       {/* Hero image */}
       <div className="relative">
         {product ? (
           <motion.div initial={{ opacity: 0, scale: 1.04 }} animate={{ opacity: 1, scale: 1 }} transition={{ duration: 0.35 }}>
-            <ProductThumb product={product} className="h-72 w-full rounded-none" rounded="" />
+            <ProductThumb product={product} className="h-72 w-full" rounded="" />
           </motion.div>
         ) : (
           <div className="h-72 w-full animate-pulse bg-teal-50" />
@@ -93,7 +121,7 @@ export default function ProductScreen({
       {product && (
         <>
           {/* Price card */}
-          <div className="relative -mt-8 z-10 px-5">
+          <div className="relative z-10 -mt-8 px-5">
             <motion.div
               initial={{ opacity: 0, y: 18 }}
               animate={{ opacity: 1, y: 0 }}
@@ -155,23 +183,68 @@ export default function ProductScreen({
           transition={{ type: "spring", stiffness: 320, damping: 30, delay: 0.15 }}
           className="fixed bottom-0 left-1/2 z-40 w-full max-w-[430px] -translate-x-1/2"
         >
-          <div className="border-t border-teal-100/70 bg-white/92 bg-white/90 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl shadow-[0_-10px_30px_-15px_rgba(13,148,136,0.35)]">
-            <div className="flex items-center gap-3">
+          <div className="border-t border-teal-100/70 bg-white/90 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-xl shadow-[0_-10px_30px_-15px_rgba(13,148,136,0.35)]">
+            <div className="flex items-center gap-2.5">
               <div className="min-w-0">
                 <p className="text-[10px] font-semibold text-muted-foreground">Harga spesial</p>
                 <p className="truncate text-lg font-extrabold text-primary">{formatRupiah(product.price)}</p>
               </div>
               <Button
+                onClick={() => addToCart()}
+                disabled={product.stock <= 0}
+                className="press ml-auto flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border-2 border-primary/60 bg-white p-0 text-primary shadow-md hover:bg-teal-50 disabled:opacity-40"
+                aria-label="Tambah ke keranjang"
+              >
+                {added ? <span className="text-base font-black">✓</span> : <Plus className="h-5 w-5" strokeWidth={3} />}
+              </Button>
+              <Button
                 onClick={onBuy}
                 disabled={product.stock <= 0}
-                className="press ml-auto h-12 flex-1 rounded-2xl bg-primary text-sm font-extrabold shadow-lg shadow-teal-500/30 hover:bg-teal-700 disabled:opacity-40"
+                className="press h-12 flex-1 rounded-2xl bg-primary text-sm font-extrabold shadow-lg shadow-teal-500/30 hover:bg-teal-700 disabled:opacity-40"
               >
                 {product.stock <= 0 ? "Stok Habis" : "Beli Sekarang →"}
               </Button>
             </div>
+            {added && (
+              <motion.p
+                initial={{ opacity: 0, y: -6 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="mt-2 flex items-center justify-center gap-1 text-[11px] font-bold text-emerald-600"
+              >
+                <ShoppingBag className="h-3.5 w-3.5" /> Masuk keranjang! Bisa checkout bareng item lain dari toko ini.
+              </motion.p>
+            )}
           </div>
         </motion.div>
       )}
+
+      {/* Cross-store conflict dialog */}
+      <AlertDialog open={conflict} onOpenChange={setConflict}>
+        <AlertDialogContent className="max-w-[400px] rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ShoppingBag className="h-5 w-5 text-primary" />
+              Ganti isi keranjang?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Keranjangmu berisi item dari toko lain. Transaksi antar UMKM harus terpisah — keranjang akan
+              diganti dengan item dari <b>{store?.name}</b>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-primary hover:bg-teal-700"
+              onClick={() => {
+                addToCart(true);
+                setConflict(false);
+              }}
+            >
+              Ya, Ganti
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

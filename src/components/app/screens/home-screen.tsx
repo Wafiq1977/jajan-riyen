@@ -6,7 +6,6 @@ import {
   Search,
   MapPin,
   Bell,
-  Flame,
   Clock3,
   ChevronRight,
   ShoppingBasket,
@@ -18,7 +17,8 @@ import {
 import type { Store, User } from "@/lib/types";
 import { formatRupiah, maskPhone } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { BrandWordmark } from "../toska-app";
+import { BrandWordmark } from "../brand";
+import { TopBar, CountdownChip } from "../widgets";
 import { ProductThumb, Stars, SectionTitle, EmptyState, DiscountBadge, SkeletonList } from "../shared";
 
 const CATEGORIES = [
@@ -31,9 +31,11 @@ const CATEGORIES = [
 export default function HomeScreen({
   user,
   onOpenStore,
+  onOpenFlashSale,
 }: {
   user: User | null;
   onOpenStore: (storeId: string) => void;
+  onOpenFlashSale: () => void;
 }) {
   const [stores, setStores] = useState<Store[] | null>(null);
   const [query, setQuery] = useState("");
@@ -76,38 +78,71 @@ export default function HomeScreen({
 
   return (
     <div>
-      {/* Header */}
-      <header className="relative bg-brand-gradient px-5 pb-14 pt-6 rounded-b-[2rem] overflow-hidden">
+      {/* Transparent navbar — glassy on scroll */}
+      <TopBar>
+        {(scrolled) => (
+          <>
+            <div className="min-w-0">
+              <div className={cn("transition-opacity duration-300", scrolled ? "opacity-100" : "opacity-0")}>
+                <BrandWordmark size="sm" />
+              </div>
+              <div
+                className={cn(
+                  "absolute inset-0 flex items-center px-5 transition-opacity duration-300",
+                  scrolled ? "opacity-0 pointer-events-none" : "opacity-100"
+                )}
+              >
+                <span className="text-sm font-extrabold text-white/95">
+                  Halo{user ? `, ${maskPhone(user.phone)}` : ""} 👋
+                </span>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                className={cn(
+                  "press relative flex h-9 w-9 items-center justify-center rounded-full backdrop-blur transition-colors",
+                  scrolled ? "bg-teal-50 text-primary" : "bg-white/15 text-white"
+                )}
+                aria-label="Notifikasi"
+              >
+                <Bell className="h-4 w-4" />
+                <span
+                  className={cn(
+                    "absolute right-2 top-2 h-2 w-2 rounded-full bg-amber-300",
+                    scrolled ? "ring-2 ring-white" : "ring-2 ring-teal-600"
+                  )}
+                />
+              </button>
+              <button
+                className={cn(
+                  "press flex h-9 items-center gap-1 rounded-full px-3 text-xs font-bold backdrop-blur transition-colors",
+                  scrolled ? "bg-teal-50 text-primary" : "bg-white/15 text-white"
+                )}
+              >
+                <MapPin className="h-3.5 w-3.5" />
+                Banaran ▾
+              </button>
+            </div>
+          </>
+        )}
+      </TopBar>
+
+      {/* Hero header (under transparent navbar) */}
+      <header className="relative bg-brand-gradient px-5 rounded-b-[2rem] overflow-hidden pb-16 pt-20">
         <motion.div
           className="absolute -right-12 -top-12 h-44 w-44 rounded-full bg-white/10"
           animate={{ y: [0, 10, 0] }}
           transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
         />
         <div className="relative z-10">
-          <div className="flex items-center justify-between">
-            <BrandWordmark light size="sm" />
-            <div className="flex items-center gap-2">
-              <button
-                className="press relative flex h-9 w-9 items-center justify-center rounded-full bg-white/15 text-white backdrop-blur"
-                aria-label="Notifikasi"
-              >
-                <Bell className="h-4 w-4" />
-                <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-amber-300 ring-2 ring-teal-600" />
-              </button>
-              <button className="press flex h-9 items-center gap-1 rounded-full bg-white/15 px-3 text-xs font-bold text-white backdrop-blur">
-                <MapPin className="h-3.5 w-3.5" />
-                Banaran ▾
-              </button>
-            </div>
-          </div>
-          <h1 className="mt-5 text-lg font-extrabold text-white">
-            Halo{user ? `, ${maskPhone(user.phone)}` : ""} 👋
+          <h1 className="text-lg font-extrabold text-white">
+            Mau jajan apa hari ini? 🤤
           </h1>
-          <p className="text-xs text-teal-50/85">Mau makan & minum apa hari ini?</p>
+          <p className="text-xs text-teal-50/85">Kuliner UMKM sekitar, bayar tunai atau QRIS</p>
 
           {/* Search */}
           <div className="mt-4 flex items-center gap-2.5 rounded-2xl bg-white px-4 py-3 shadow-lg shadow-teal-900/10">
-            <Search className="h-4.5 w-4.5 h-[18px] w-[18px] text-teal-500" />
+            <Search className="h-[18px] w-[18px] text-teal-500" />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -150,34 +185,37 @@ export default function HomeScreen({
         })}
       </div>
 
-      {/* Promo banner */}
+      {/* Promo banner — clickable → flash sale */}
       <div className="mt-4 px-5">
         <motion.button
           initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
           whileTap={{ scale: 0.98 }}
-          onClick={() => setCategory("")}
+          onClick={onOpenFlashSale}
           className="relative block w-full overflow-hidden rounded-3xl text-left card-soft"
-          aria-label="Lihat promo"
+          aria-label="Buka Flash Sale Jajan Riyen"
         >
           <img
             src="/banner-promo.png"
-            alt="Promo TOSKA diskon hingga 45%"
+            alt="Promo Jajan Riyen diskon hingga 45%"
             className="h-36 w-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-teal-900/70 via-teal-800/30 to-transparent" />
+          <div className="absolute inset-0 bg-gradient-to-r from-teal-900/75 via-teal-800/35 to-transparent" />
           <div className="absolute inset-0 flex flex-col justify-center px-5">
-            <span className="w-fit rounded-full bg-amber-400 px-2.5 py-0.5 text-[10px] font-extrabold text-teal-950">
-              SPESIAL HARI INI
+            <span className="flex w-fit items-center gap-1 rounded-full bg-amber-400 px-2.5 py-0.5 text-[10px] font-extrabold text-teal-950">
+              <Zap className="h-2.5 w-2.5 fill-teal-950" /> FLASH SALE
             </span>
             <h3 className="mt-1.5 text-xl font-extrabold leading-tight text-white drop-shadow">
               Diskon hingga 45% <br /> buat kuliner lokal
             </h3>
+            <span className="mt-1.5 flex items-center gap-1 text-[11px] font-bold text-emerald-200">
+              Lihat semuanya <ChevronRight className="h-3 w-3" />
+            </span>
           </div>
         </motion.button>
       </div>
 
-      {/* Flash sale */}
+      {/* Flash sale rail */}
       {!query && flashProducts.length > 0 && (
         <section className="mt-6">
           <div className="px-5">
@@ -191,7 +229,11 @@ export default function HomeScreen({
                 </span>
               }
               subtitle="Harga miring terbatas, buruan!"
+              action={<button onClick={onOpenFlashSale} className="press text-[11px] font-extrabold text-primary hover:underline">Lihat Semua</button>}
             />
+            <div className="-mt-1 mb-3">
+              <CountdownChip label="Berakhir dalam" />
+            </div>
           </div>
           <div className="no-scrollbar flex gap-3 overflow-x-auto px-5 pb-2">
             {flashProducts.map(({ product, store }) => (
@@ -201,7 +243,7 @@ export default function HomeScreen({
                 className="press w-36 shrink-0 overflow-hidden rounded-3xl border border-teal-50 bg-white text-left card-soft"
               >
                 <div className="relative">
-                  <ProductThumb product={product} className="h-28 w-full rounded-none" rounded="" />
+                  <ProductThumb product={product} className="h-28 w-full" rounded="" />
                   <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-red-500 px-2 py-0.5 text-[9px] font-extrabold text-white">
                     <Zap className="h-2.5 w-2.5 fill-white" /> FLASH
                   </span>
@@ -279,7 +321,7 @@ export default function HomeScreen({
                           <ProductThumb product={p} className="h-14 w-14" rounded="rounded-xl" />
                           {p.isFlashSale && (
                             <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-white">
-                              <Flame className="h-2.5 w-2.5 fill-white" />
+                              <Zap className="h-2.5 w-2.5 fill-white" />
                             </span>
                           )}
                         </div>
@@ -294,7 +336,7 @@ export default function HomeScreen({
       </section>
 
       <footer className="mt-10 pb-2 text-center text-[10px] text-slate-400">
-        TOSKA · Marketplace lokal untuk semuanya 🌿
+        Jajan Riyen · Marketplace jajan lokal 🌿
       </footer>
     </div>
   );

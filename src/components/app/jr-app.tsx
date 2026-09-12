@@ -2,46 +2,62 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Home, ReceiptText, Store, UserRound, ShoppingBag } from "lucide-react";
-import { useAppStore } from "@/lib/app-store";
+import { Home, ReceiptText, UserRound, Compass, ShoppingCart } from "lucide-react";
+import { useAppStore, useCartStore, cartTotalQty } from "@/lib/app-store";
 import type { User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import SplashScreen from "./screens/splash-screen";
 import LoginScreen from "./screens/login-screen";
 import HomeScreen from "./screens/home-screen";
+import ExploreScreen from "./screens/explore-screen";
+import CartScreen from "./screens/cart-screen";
 import OrdersScreen from "./screens/orders-screen";
 import AccountScreen from "./screens/account-screen";
 import StoreScreen from "./screens/store-screen";
 import ProductScreen from "./screens/product-screen";
 import CheckoutScreen from "./screens/checkout-screen";
 import SuccessScreen from "./screens/success-screen";
+import FlashSaleScreen from "./screens/flash-sale-screen";
 import SellerFormScreen from "./screens/seller-form-screen";
 import SellerDashboardScreen from "./screens/seller-dashboard-screen";
+import { CartBar, FlashSalePopup } from "./widgets";
 
 export type Screen =
   | { name: "home" }
+  | { name: "explore" }
+  | { name: "cart" }
   | { name: "orders" }
   | { name: "account" }
   | { name: "seller" }
+  | { name: "flash-sale" }
   | { name: "store"; storeId: string }
   | { name: "product"; productId: string; storeId: string }
   | { name: "checkout"; productId: string; storeId: string }
   | { name: "success"; orderId: string }
   | { name: "seller-form" };
 
-const TAB_SCREENS: Screen["name"][] = ["home", "orders", "seller", "account"];
+const TAB_SCREENS: Screen["name"][] = ["home", "explore", "cart", "orders", "account"];
 
-export default function ToskaApp() {
+export default function JrApp() {
   const { user, setUser } = useAppStore();
+  const clearCart = useCartStore((s) => s.clear);
   const [hydrated, setHydrated] = useState(false);
   const [splashDone, setSplashDone] = useState(false);
   const [screen, setScreen] = useState<Screen>({ name: "home" });
   const [direction, setDirection] = useState(0); // 1 = push (slide left), -1 = pop, 0 = tab fade
   const historyRef = useRef<Screen[]>([]);
 
+  // Flash sale popup — once per session, right after login lands on beranda
+  const [showPopup, setShowPopup] = useState(false);
+  const popupShownRef = useRef(false);
+
   // Re-render trigger for order refresh
   const [orderTick, setOrderTick] = useState(0);
   const bumpOrders = useCallback(() => setOrderTick((t) => t + 1), []);
+
+  // Cart badge
+  const cartItems = useCartStore((s) => s.items);
+  const cartQty = cartTotalQty(cartItems);
 
   useEffect(() => {
     const t1 = setTimeout(() => setHydrated(true), 0);
@@ -61,7 +77,16 @@ export default function ToskaApp() {
         if (data?.user) setUser(data.user as User);
       })
       .catch(() => {});
-  }, [hydrated]);
+  }, [hydrated, setUser, user?.id]);
+
+  // Trigger popup once per session when user is on beranda after login
+  useEffect(() => {
+    if (!hydrated || !splashDone || !user || popupShownRef.current) return;
+    if (screen.name !== "home") return;
+    popupShownRef.current = true;
+    // No cleanup on purpose: the popup must survive quick dependency changes right after login
+    setTimeout(() => setShowPopup(true), 650);
+  }, [hydrated, splashDone, user, screen.name]);
 
   const push = useCallback((next: Screen) => {
     setScreen((cur) => {
@@ -90,17 +115,16 @@ export default function ToskaApp() {
 
   const isTab = useMemo(() => TAB_SCREENS.includes(screen.name), [screen]);
 
-  const navItems = useMemo(() => {
-    const items: { key: Screen["name"]; label: string; icon: typeof Home; screen: Screen }[] = [
-      { key: "home", label: "Beranda", icon: Home, screen: { name: "home" } },
-      { key: "orders", label: "Pesanan", icon: ReceiptText, screen: { name: "orders" } },
-    ];
-    if (user?.isSeller) {
-      items.push({ key: "seller", label: "Toko", icon: Store, screen: { name: "seller" } });
-    }
-    items.push({ key: "account", label: "Akun", icon: UserRound, screen: { name: "account" } });
-    return items;
-  }, [user?.isSeller]);
+  const navItems = useMemo(
+    () => [
+      { key: "home", label: "Beranda", icon: Home, screen: { name: "home" } as Screen },
+      { key: "explore", label: "Jelajahi", icon: Compass, screen: { name: "explore" } as Screen },
+      { key: "cart", label: "Keranjang", icon: ShoppingCart, screen: { name: "cart" } as Screen, badge: cartQty },
+      { key: "orders", label: "Pesanan", icon: ReceiptText, screen: { name: "orders" } as Screen },
+      { key: "account", label: "Akun", icon: UserRound, screen: { name: "account" } as Screen },
+    ],
+    [cartQty]
+  );
 
   const screenKey = useMemo(() => {
     switch (screen.name) {
@@ -120,7 +144,35 @@ export default function ToskaApp() {
   const renderScreen = () => {
     switch (screen.name) {
       case "home":
-        return <HomeScreen user={user} onOpenStore={(id) => push({ name: "store", storeId: id })} />;
+        return (
+          <HomeScreen
+            user={user}
+            onOpenStore={(id) => push({ name: "store", storeId: id })}
+            onOpenFlashSale={() => push({ name: "flash-sale" })}
+          />
+        );
+      case "explore":
+        return (
+          <ExploreScreen
+            onOpenStore={(id) => push({ name: "store", storeId: id })}
+            onOpenFlashSale={() => push({ name: "flash-sale" })}
+          />
+        );
+      case "cart":
+        return (
+          <CartScreen
+            user={user}
+            onExplore={() => goTab({ name: "explore" })}
+            onDone={(orderId) => {
+              historyRef.current = [];
+              clearCart();
+              bumpOrders();
+              setScreen({ name: "success", orderId });
+              setDirection(1);
+              window.scrollTo({ top: 0 });
+            }}
+          />
+        );
       case "orders":
         return (
           <OrdersScreen
@@ -134,18 +186,32 @@ export default function ToskaApp() {
           <AccountScreen
             user={user}
             ordersTick={orderTick}
-            onGoTab={goTab}
+            onGoTab={(name) => goTab({ name } as Screen)}
             onSellerForm={() => push({ name: "seller-form" })}
-            onSellerDashboard={() => goTab({ name: "seller" })}
+            onSellerDashboard={() => push({ name: "seller" })}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
             onLoggedOut={() => {
               setUser(null);
+              clearCart();
               goTab({ name: "home" });
             }}
           />
         );
       case "seller":
-        return <SellerDashboardScreen user={user} onOpenStore={(id) => push({ name: "store", storeId: id })} />;
+        return (
+          <SellerDashboardScreen
+            user={user}
+            onBack={back}
+            onOpenStore={(id) => push({ name: "store", storeId: id })}
+          />
+        );
+      case "flash-sale":
+        return (
+          <FlashSaleScreen
+            onBack={back}
+            onOpenProduct={(productId, storeId) => push({ name: "product", productId, storeId })}
+          />
+        );
       case "store":
         return (
           <StoreScreen
@@ -154,6 +220,7 @@ export default function ToskaApp() {
             onOpenProduct={(productId) =>
               push({ name: "product", productId, storeId: screen.storeId })
             }
+            onOpenCart={() => goTab({ name: "cart" })}
           />
         );
       case "product":
@@ -199,7 +266,7 @@ export default function ToskaApp() {
             onDone={(updatedUser) => {
               setUser(updatedUser);
               historyRef.current = [];
-              goTab({ name: "seller" });
+              goTab({ name: "account" });
             }}
           />
         );
@@ -214,6 +281,9 @@ export default function ToskaApp() {
     exit: (dir: number) => ({ x: dir === 0 ? 0 : dir > 0 ? -80 : 80, opacity: 0 }),
   };
 
+  const showCartBar =
+    user && isTab && screen.name !== "cart" && cartQty > 0;
+
   return (
     <div className="min-h-screen bg-brand-radial flex justify-center">
       <div className="w-full max-w-[430px] bg-background min-h-screen relative shadow-[0_0_60px_-15px_rgba(13,148,136,0.25)]">
@@ -226,13 +296,18 @@ export default function ToskaApp() {
             animate="center"
             exit="exit"
             transition={{ type: "spring", stiffness: 380, damping: 34, opacity: { duration: 0.18 } }}
-            className={cn(isTab ? "pb-28" : "pb-6")}
+            className={cn(isTab ? "pb-32" : "pb-10")}
           >
             {renderScreen()}
           </motion.main>
         </AnimatePresence>
 
-        {/* Bottom navigation */}
+        {/* Floating cart bar (above bottom nav) */}
+        <AnimatePresence>
+          {showCartBar && <CartBar onOpen={() => goTab({ name: "cart" })} aboveNav />}
+        </AnimatePresence>
+
+        {/* Bottom navigation — buyer only; seller dashboard is a separate page */}
         {user && isTab && (
           <motion.nav
             initial={{ y: 90 }}
@@ -241,44 +316,75 @@ export default function ToskaApp() {
             className="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-[430px] z-40"
             aria-label="Navigasi utama"
           >
-            <div className="bg-white/90 backdrop-blur-xl border-t border-teal-100/80 px-2 pt-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-8px_30px_-12px_rgba(13,148,136,0.25)]">
-              <div className="grid grid-cols-3 gap-1" style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0,1fr))` }}>
-                {navItems.map((item) => {
-                  const active = screen.name === item.key;
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      key={item.key}
-                      onClick={() => goTab(item.screen)}
-                      className={cn(
-                        "press relative flex flex-col items-center gap-1 rounded-2xl py-2 text-[11px] font-semibold transition-colors",
-                        active ? "text-primary" : "text-slate-400 hover:text-teal-600"
-                      )}
-                      aria-current={active ? "page" : undefined}
-                    >
-                      {active && (
-                        <motion.span
-                          layoutId="nav-pill"
-                          className="absolute inset-x-3 inset-y-0 -z-10 rounded-2xl bg-teal-50"
-                          transition={{ type: "spring", stiffness: 400, damping: 32 }}
-                        />
-                      )}
-                      <span
+            <div className="px-3 pb-[max(0.6rem,env(safe-area-inset-bottom))] pt-2">
+              <div className="bottom-glass rounded-[26px] border border-white/60 shadow-[0_12px_40px_-14px_rgba(13,148,136,0.45)]">
+                <div
+                  className="grid gap-0.5 p-1.5"
+                  style={{ gridTemplateColumns: `repeat(${navItems.length}, minmax(0,1fr))` }}
+                >
+                  {navItems.map((item) => {
+                    const active = screen.name === item.key;
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key={item.key}
+                        onClick={() => goTab(item.screen)}
                         className={cn(
-                          "flex h-8 w-12 items-center justify-center rounded-full transition-colors",
-                          active ? "bg-primary text-white shadow-md shadow-teal-500/30" : ""
+                          "press relative flex flex-col items-center gap-0.5 rounded-2xl py-1.5 text-[10px] font-bold transition-colors",
+                          active ? "text-primary" : "text-slate-400 hover:text-teal-600"
                         )}
+                        aria-current={active ? "page" : undefined}
                       >
-                        <Icon className="h-[18px] w-[18px]" strokeWidth={active ? 2.4 : 2} />
-                      </span>
-                      {item.label}
-                    </button>
-                  );
-                })}
+                        {active && (
+                          <motion.span
+                            layoutId="nav-pill"
+                            className="absolute inset-0 -z-10 rounded-2xl bg-teal-50/90"
+                            transition={{ type: "spring", stiffness: 400, damping: 32 }}
+                          />
+                        )}
+                        <span className="relative">
+                          <span
+                            className={cn(
+                              "flex h-7 w-11 items-center justify-center rounded-full transition-colors",
+                              active ? "bg-primary text-white shadow-md shadow-teal-500/30" : ""
+                            )}
+                          >
+                            <Icon className="h-[16px] w-[16px]" strokeWidth={active ? 2.4 : 2} />
+                          </span>
+                          {!!item.badge && item.badge > 0 && (
+                            <motion.span
+                              key={item.badge}
+                              initial={{ scale: 0.5 }}
+                              animate={{ scale: 1 }}
+                              className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[9px] font-black text-white ring-2 ring-white"
+                            >
+                              {item.badge}
+                            </motion.span>
+                          )}
+                        </span>
+                        {item.label}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </motion.nav>
         )}
+
+        {/* Flash sale popup after login */}
+        <AnimatePresence>
+          {showPopup && (
+            <FlashSalePopup
+              open
+              onClose={() => setShowPopup(false)}
+              onOpenSale={() => {
+                setShowPopup(false);
+                push({ name: "flash-sale" });
+              }}
+            />
+          )}
+        </AnimatePresence>
 
         {/* Splash & login overlay */}
         <AnimatePresence>
@@ -304,7 +410,7 @@ export default function ToskaApp() {
               animate={{ opacity: 1 }}
               className="fixed inset-0 z-40 flex justify-center bg-white"
             >
-              <div className="w-full max-w-[430px]">
+              <div className="w-full max-w-[430px] overflow-y-auto">
                 <LoginScreen
                   onLogin={(u) => {
                     setUser(u);
@@ -316,22 +422,6 @@ export default function ToskaApp() {
           )}
         </AnimatePresence>
       </div>
-    </div>
-  );
-}
-
-export function BrandWordmark({ light = false, size = "md" }: { light?: boolean; size?: "sm" | "md" | "lg" }) {
-  const sizes = { sm: "text-lg", md: "text-2xl", lg: "text-4xl" };
-  return (
-    <div className="flex items-center gap-2">
-      <span className={cn("flex items-center justify-center rounded-xl bg-brand-gradient text-white shadow-lg shadow-teal-500/30",
-        size === "lg" ? "h-12 w-12" : size === "sm" ? "h-7 w-7" : "h-9 w-9")}>
-        <ShoppingBag className={size === "lg" ? "h-6 w-6" : size === "sm" ? "h-4 w-4" : "h-5 w-5"} />
-      </span>
-      <span className={cn("font-extrabold tracking-tight", sizes[size], light ? "text-white" : "text-foreground")}>
-        TOSKA
-        <span className="text-primary">.</span>
-      </span>
     </div>
   );
 }

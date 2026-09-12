@@ -51,7 +51,7 @@ model Product {
   sold          Int      @default(0)
   isFlashSale   Boolean  @default(false)
   createdAt     DateTime @default(now())
-  orders        Order[]
+  orderItems    OrderItem[]
 }
 
 model Order {
@@ -59,14 +59,26 @@ model Order {
   code          String   @unique
   userId        String
   user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  productId     String
-  product       Product  @relation(fields: [productId], references: [id])
   storeId       String
   store         Store    @relation(fields: [storeId], references: [id])
+  items         OrderItem[]
   quantity      Int
   totalPrice    Int
   paymentMethod String   @default("TUNAI")
   status        String   @default("PENDING")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  productId String
+  product   Product @relation(fields: [productId], references: [id])
+  name      String
+  price     Int
+  quantity  Int
+  emoji     String  @default("🍽️")
+  imageUrl  String?
 }

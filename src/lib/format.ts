@@ -2,6 +2,19 @@ export function formatRupiah(n: number): string {
   return "Rp" + Math.round(n).toLocaleString("id-ID");
 }
 
+/** Compact rupiah for tight stat chips: Rp1,2jt / Rp54rb */
+export function formatRupiahCompact(n: number): string {
+  if (n >= 1_000_000) {
+    const v = n / 1_000_000;
+    return `Rp${v.toFixed(v < 10 ? 1 : 0).replace(".", ",").replace(",0", "")}jt`;
+  }
+  if (n >= 1_000) {
+    const v = n / 1_000;
+    return `Rp${v.toFixed(v < 10 ? 1 : 0).replace(".", ",").replace(",0", "")}rb`;
+  }
+  return formatRupiah(n);
+}
+
 export function maskPhone(phone: string): string {
   if (phone.length < 7) return phone;
   return phone.slice(0, 4) + "****" + phone.slice(-3);

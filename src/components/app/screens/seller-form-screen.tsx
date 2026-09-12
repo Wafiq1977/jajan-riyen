@@ -30,9 +30,9 @@ const CATEGORIES = [
 ];
 
 const BENEFITS = [
-  { icon: Store, title: "Toko online gratis", desc: "Etalase produkmu tampil ke semua pembeli TOSKA" },
+  { icon: Store, title: "Toko online gratis", desc: "Etalase produkmu tampil ke semua pembeli Jajan Riyen" },
   { icon: PackagePlus, title: "Kelola menu mudah", desc: "Tambah produk, atur stok & harga dalam sekali klik" },
-  { icon: BarChart3, title: "Pantau pesanan", desc: "Terima, proses, dan selesaikan pesanan realtime" },
+  { icon: BarChart3, title: "Dashboard tersendiri", desc: "Halaman penjual terpisah dari akun pembeli" },
 ];
 
 export default function SellerFormScreen({
@@ -208,7 +208,7 @@ export default function SellerFormScreen({
 
         <div className="mt-4 flex items-start justify-center gap-1.5 text-center text-[11px] leading-relaxed text-muted-foreground">
           <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-          Setelah aktif, tab <b className="mx-0.5 text-primary">Toko</b> otomatis muncul di navigasi bawah.
+          Setelah aktif, <b className="mx-0.5 text-primary">Dashboard Penjual</b> otomatis muncul di menu Akun.
         </div>
       </div>
     </div>

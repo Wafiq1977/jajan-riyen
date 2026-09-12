@@ -122,7 +122,7 @@
   }
 }
 
-/* ---------- TOSKA custom ---------- */
+/* ---------- TOSKA custom (now Jajan Riyen) ---------- */
 
 /* Hide scrollbars for horizontal scrollers */
 .no-scrollbar::-webkit-scrollbar {
@@ -159,6 +159,30 @@
     linear-gradient(180deg, #f6fffd 0%, #ffffff 100%);
 }
 
+/* Frosted glass — transparent top navbar that turns glassy on scroll */
+.nav-glass {
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(18px) saturate(1.5);
+  -webkit-backdrop-filter: blur(18px) saturate(1.5);
+}
+.nav-ghost {
+  background: transparent;
+  backdrop-filter: blur(0px);
+  -webkit-backdrop-filter: blur(0px);
+}
+.nav-glass-dark {
+  background: rgba(13, 148, 136, 0.38);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+}
+
+/* Bottom floating nav glass */
+.bottom-glass {
+  background: rgba(255, 255, 255, 0.82);
+  backdrop-filter: blur(22px) saturate(1.6);
+  -webkit-backdrop-filter: blur(22px) saturate(1.6);
+}
+
 /* Tactile press feedback */
 .press {
   transition: transform 0.15s ease, box-shadow 0.2s ease, background-color 0.2s ease;
@@ -192,4 +216,9 @@
 }
 .voucher-notch::after {
   right: -8px;
+}
+
+/* Safe-area bottom helper */
+.safe-bottom {
+  padding-bottom: max(0.75rem, env(safe-area-inset-bottom));
 }

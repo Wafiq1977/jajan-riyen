@@ -50,3 +50,43 @@ Stage Summary:
 - Complete TOSKA marketplace: buyer flow (phone OTP login, browse, buy via TUNAI/QRIS, cancel) + seller flow (register from Akun page, dashboard auto-added, manage products/orders).
 - Key decisions: single-route SPA with state-machine navigation (per sandbox constraint); simulated OTP; real QR via qrcode package; all users default buyers; seller registration is one transaction that flips isSeller + creates store.
 - Artifacts: prisma/schema.prisma, prisma/seed.ts, 9 API routes, 10 screens + shared components, updated globals.css/layout/page.
+
+---
+Task ID: 1 (poster asset)
+Agent: general-purpose (image generation)
+Task: Generate flash-sale popup poster for Jajan Riyen
+
+Work Log:
+- Generated /home/z/my-project/public/flashsale-poster.png at 768x1344 (CLI whitelist portrait size) via z-ai CLI.
+- Converted JPEG->true PNG with PIL (same CLI quirk as before). Vision-QA'd: clean dark-teal top for text overlay, no text in image.
+
+Stage Summary:
+- Poster asset ready at public/flashsale-poster.png (768x1344 PNG).
+
+---
+Task ID: 2-9 (main)
+Agent: Z.ai Code (main)
+Task: Rebrand TOSKA -> Jajan Riyen (JR) + 10 user requests: JR logo, responsive fixes, cart per UMKM, Jelajahi tab, flash-sale popup, clickable flash banner, separate seller dashboard, person icon, transparent navbar
+
+Work Log:
+- Schema: added OrderItem model (orderId, productId, name, price, quantity, emoji, imageUrl); Order now has items[] + total quantity/totalPrice; removed Order.productId FK. db:push --accept-data-loss + reseeded (5 stores, 14 products).
+- API: rewrote POST /api/orders to accept {userId, storeId, paymentMethod, items[]} — validates ALL items belong to ONE store (never merges UMKM transactions), dedupes quantities, stock-checks, transactional create with nested items + stock/sold updates. LEARNED: Prisma checked-input mode (nested writes) requires relation `connect:{id}` instead of scalar FK — had to restart dev server after client regen because the running process held the stale generated client.
+- Fixed GET orders / PATCH order includes (items instead of product); products DELETE now counts orderItem.
+- Cart: new persisted zustand useCartStore (single-store cart; addItem returns added|replaced|conflict; conflict -> AlertDialog "Ganti isi keranjang?" in store & product screens). Cart badge on navbar + floating CartBar (home/explore/orders/account above nav; store screen bottom).
+- Brand: recreated owner's logo as SVG component (brand.tsx: JrMark/JrBadge/BrandWordmark "Jajan**Riyen**", Jajan ink + Riyen emerald); new favicon.svg (JR + leaf on teal gradient); renamed app shell toska-app.tsx -> jr-app.tsx; all TOSKA strings -> Jajan Riyen; order codes JR-XXXXXX; QR payload JRPAY.
+- Navbar: buyer tabs now Beranda | Jelajahi | Keranjang(badge) | Pesanan | Akun in floating glass pill (bottom-glass, rounded-[26px], safe-area). Seller tab REMOVED — seller dashboard is a separate pushed page with dark slate header + back button + "MODE PENJUAL" badge (menu via Akun card & menu item).
+- TopBar widget: transparent over gradient heroes, smooth transition to frosted glass (nav-glass, blur 18px + saturate) after 24px scroll; used on home/explore/flash-sale.
+- New screens: explore-screen (Jelajahi: search, emoji category circles, "Pilihan JajanRiyen" gradient quick-filter cards [Diskon Besar/Paling Dicari/Paling Dekat/Flash Sale], 2-col "Rekomendasi di Sekitarmu" grid with distance badges); flash-sale-screen (orange hero + midnight countdown chip, all flash items with stock bars, Beli -> product); cart-screen (per-UMKM note, multi-item qty steppers, TUNAI/QRIS + shared QrisPanel, floating sticky footer above nav; empty state -> Jelajahi).
+- Flash sale popup (widgets.FlashSalePopup): shows once per session ~650ms after login lands on beranda; poster + countdown to midnight + "Serbu Diskonnya!" -> flash-sale screen. BUGFIX: initial effect cleanup cancelled the timeout when goTab re-created screen object; removed cleanup intentionally.
+- Home: clickable FLASH SALE banner -> flash-sale screen; flash rail header "Lihat Semua" + countdown chip; store rows get "+" quick-add w/ check feedback.
+- Orders: multi-item rendering (emoji/img thumb rows, price x qty, per-item subtotal, max-h scroll if >3 items, "N item" chip).
+- Account: person icon avatar (CircleUserRound + verified dot), dark "Dashboard Penjual MODE PENJUAL" card, menu items Keranjang Belanja/Lihat Toko Saya/Buka Dashboard Penjual, JR branding, help/FAQ updated (cart per UMKM).
+- Seller dashboard: separate page (back + dark header), multi-item order cards, compact omzet (formatRupiahCompact 15rb), stats grid fixed (was invalid h-13 w-13).
+- Responsive/cut-off fixes: login card z-10 under rounded header (was clipped), phone input flex-1 min-w-0 + shrink-0 prefix, cart note text wrapped in span (was broken into flex columns), cart sticky footer lifted above nav (bottom-[calc(76px+env)] + floating rounded), valid Tailwind sizes only.
+- Verified via agent-browser (400x850, 360x740, 1280x800): splash->login(OTP)->popup->home->banner->flash sale->product->+cart->store 2nd item->cart qty+/QRIS->order JR-6QZCLH 3 item Rp44.000->success->orders multi-item; cross-store conflict dialog (Ya Ganti replaces cart); Akun person icon; seller register (Warung Jajanan Mbak Yuli) -> separate dark dashboard -> add flash product -> buy own product (direct checkout TUNAI) -> Terima -> Selesai; explore filters render; transparent->glass navbar on scroll; desktop frame centered. User's live store "wafiq" (Es Tosca 50% flash) renders fine.
+- Lint 0/0, tsc clean (app code). Dev server 200, no runtime errors in dev.log.
+
+Stage Summary:
+- App fully rebranded Jajan Riyen (JR) with all 10 requested features working and browser-verified.
+- Key decisions: OrderItem table for multi-product orders (one transaction per UMKM enforced server-side); cart = single-store client-side with replace-or-cancel conflict UX; seller mode never mixes into buyer navbar (separate dark page via Akun); popup once per browser session.
+- Artifacts: brand.tsx, widgets.tsx (TopBar/QrisPanel/CartBar/FlashSalePopup/countdown), jr-app.tsx, 3 new screens (explore/flash-sale/cart), rewritten screens (home/store/product/checkout/orders/account/seller-dashboard/splash/login), orders API v2 (items[]), schema OrderItem, favicon.svg, flashsale-poster.png.

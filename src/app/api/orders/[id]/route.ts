@@ -23,7 +23,7 @@ export async function PATCH(
     const order = await db.order.update({
       where: { id },
       data: { status },
-      include: { product: true, store: true },
+      include: { items: true, store: true },
     });
 
     return NextResponse.json({ order });

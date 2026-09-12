@@ -7,7 +7,6 @@ import type { Order, OrderStatus, User } from "@/lib/types";
 import { formatRupiah, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
-  ProductThumb,
   StatusBadge,
   PaymentBadge,
   EmptyState,
@@ -73,9 +72,9 @@ export default function OrdersScreen({
   return (
     <div>
       {/* Header */}
-      <div className="bg-brand-gradient px-5 pb-6 pt-7 rounded-b-[2rem]">
+      <div className="bg-brand-gradient px-5 rounded-b-[2rem] pb-6 pt-8">
         <h1 className="text-2xl font-extrabold text-white">Pesanan</h1>
-        <p className="mt-0.5 text-xs text-teal-50/85">Riwayat belanja kamu semua di sini</p>
+        <p className="mt-0.5 text-xs text-teal-50/85">Riwayat jajanmu, dipisah per UMKM</p>
       </div>
 
       {/* Tabs */}
@@ -150,20 +149,43 @@ export default function OrdersScreen({
                   <StatusBadge status={order.status} />
                 </div>
 
-                <div className="flex gap-3 p-4">
-                  <ProductThumb product={order.product} className="h-16 w-16 shrink-0" />
-                  <div className="min-w-0 flex-1">
-                    <h3 className="truncate text-sm font-extrabold text-foreground">{order.product.name}</h3>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {formatRupiah(order.product.price)} × {order.quantity}
-                    </p>
-                    <div className="mt-1.5 flex flex-wrap gap-1.5">
-                      <PaymentBadge method={order.paymentMethod} />
-                      <span className="rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[9px] font-bold text-slate-500">
-                        {order.code}
+                {/* Items (multi-product, one UMKM) */}
+                <div
+                  className={cn(
+                    "mt-2 space-y-1 px-4",
+                    order.items.length > 3 && "max-h-44 overflow-y-auto pretty-scroll"
+                  )}
+                >
+                  {order.items.map((item) => (
+                    <div key={item.id} className="flex items-center gap-2.5 py-1.5">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-50 text-base">
+                        {item.imageUrl ? (
+                          <img src={item.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                        ) : (
+                          item.emoji
+                        )}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-xs font-bold text-foreground">{item.name}</p>
+                        <p className="text-[10px] text-muted-foreground">
+                          {formatRupiah(item.price)} × {item.quantity}
+                        </p>
+                      </div>
+                      <span className="shrink-0 text-[11px] font-extrabold text-slate-500">
+                        {formatRupiah(item.price * item.quantity)}
                       </span>
                     </div>
-                  </div>
+                  ))}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 pt-2">
+                  <PaymentBadge method={order.paymentMethod} />
+                  <span className="rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[9px] font-bold text-slate-500">
+                    {order.code}
+                  </span>
+                  <span className="rounded-full bg-teal-50 px-2 py-0.5 text-[9px] font-bold text-teal-600">
+                    {order.quantity} item
+                  </span>
                 </div>
 
                 <div className="voucher-notch border-t border-dashed border-teal-100 px-4 py-3">

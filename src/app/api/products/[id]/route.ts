@@ -8,7 +8,7 @@ export async function DELETE(
   try {
     const { id } = await params;
 
-    const existingOrders = await db.order.count({ where: { productId: id } });
+    const existingOrders = await db.orderItem.count({ where: { productId: id } });
     if (existingOrders > 0) {
       return NextResponse.json(
         { error: "Produk memiliki riwayat pesanan, tidak dapat dihapus" },

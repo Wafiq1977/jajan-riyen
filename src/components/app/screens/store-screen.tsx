@@ -9,24 +9,44 @@ import {
   Clock3,
   Star,
   ChevronRight,
-  Flame,
+  Zap,
+  Plus,
+  ShoppingBag,
 } from "lucide-react";
-import type { Store } from "@/lib/types";
+import type { Product, Store } from "@/lib/types";
 import { formatRupiah, discountPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { useCartStore } from "@/lib/app-store";
+import { CartBar } from "../widgets";
 import { ProductThumb, Stars, SkeletonList, EmptyState } from "../shared";
 
 export default function StoreScreen({
   storeId,
   onBack,
   onOpenProduct,
+  onOpenCart,
 }: {
   storeId: string;
   onBack: () => void;
   onOpenProduct: (productId: string) => void;
+  onOpenCart: () => void;
 }) {
   const [store, setStore] = useState<Store | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [conflictProduct, setConflictProduct] = useState<Product | null>(null);
+  const [addedFlash, setAddedFlash] = useState<string | null>(null);
+
+  const addItem = useCartStore((s) => s.addItem);
 
   useEffect(() => {
     let alive = true;
@@ -43,6 +63,17 @@ export default function StoreScreen({
     };
   }, [storeId]);
 
+  const quickAdd = (product: Product) => {
+    if (!store || product.stock <= 0) return;
+    const result = addItem(product, store);
+    if (result === "conflict") {
+      setConflictProduct(product);
+      return;
+    }
+    setAddedFlash(product.id);
+    setTimeout(() => setAddedFlash(null), 900);
+  };
+
   if (notFound) {
     return (
       <div className="pt-6">
@@ -55,9 +86,9 @@ export default function StoreScreen({
   }
 
   return (
-    <div>
+    <div className="pb-24">
       {/* Hero header */}
-      <div className="relative bg-brand-gradient px-5 pb-16 pt-5 rounded-b-[2rem] overflow-hidden">
+      <div className="relative bg-brand-gradient px-5 rounded-b-[2rem] overflow-hidden pb-16 pt-6">
         <motion.div
           className="absolute -right-10 -bottom-16 h-48 w-48 rounded-full bg-white/10"
           animate={{ y: [0, -10, 0] }}
@@ -98,9 +129,9 @@ export default function StoreScreen({
       ) : (
         <>
           {/* Info card */}
-          <div className="relative -mt-10 z-10 px-5">
+          <div className="relative z-10 -mt-10 px-5">
             <div className="rounded-3xl border border-teal-50 bg-white p-4 card-soft">
-              <div className="flex items-center gap-2 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-xs">
                 <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-50 px-2.5 py-1 font-bold text-emerald-600">
                   <Clock3 className="h-3 w-3" /> Buka {store.openTime}–{store.closeTime}
                 </span>
@@ -126,7 +157,7 @@ export default function StoreScreen({
           {/* Products */}
           <div className="mt-6 px-5">
             <div className="mb-3 flex items-center justify-between">
-              <h2 className="text-[17px] font-extrabold tracking-tight">Menu & Promo</h2>
+              <h2 className="text-[17px] font-extrabold tracking-tight">Menu &amp; Promo</h2>
               <span className="text-xs font-semibold text-muted-foreground">{store.products.length} produk</span>
             </div>
             <div className="space-y-3">
@@ -150,7 +181,7 @@ export default function StoreScreen({
                         <ProductThumb product={product} className="h-[74px] w-[74px]" />
                         {product.isFlashSale && (
                           <span className="absolute -right-1.5 -top-1.5 flex h-6 w-6 items-center justify-center rounded-full bg-gradient-to-br from-orange-400 to-red-500 text-white shadow-md">
-                            <Flame className="h-3 w-3 fill-white" />
+                            <Zap className="h-3 w-3 fill-white" />
                           </span>
                         )}
                       </div>
@@ -178,11 +209,25 @@ export default function StoreScreen({
                       </div>
                       <ChevronRight className="mt-6 h-4 w-4 shrink-0 text-slate-300" />
                     </button>
-                    <div className="voucher-notch border-t border-dashed border-teal-100 px-3.5 py-2.5">
+                    <div className="voucher-notch flex items-center gap-2 border-t border-dashed border-teal-100 px-3.5 py-2.5">
+                      <Button
+                        onClick={() => quickAdd(product)}
+                        disabled={soldOut}
+                        className="press h-9 w-12 shrink-0 rounded-xl bg-teal-50 p-0 text-primary shadow-none hover:bg-teal-100 disabled:opacity-40"
+                        aria-label={`Tambah ${product.name} ke keranjang`}
+                      >
+                        {addedFlash === product.id ? (
+                          <motion.span initial={{ scale: 0 }} animate={{ scale: 1 }} className="text-sm">
+                            ✓
+                          </motion.span>
+                        ) : (
+                          <Plus className="h-4 w-4" strokeWidth={3} />
+                        )}
+                      </Button>
                       <Button
                         onClick={() => onOpenProduct(product.id)}
                         disabled={soldOut}
-                        className="press h-9 w-full rounded-xl bg-primary text-xs font-extrabold shadow-md shadow-teal-500/25 hover:bg-teal-700 disabled:opacity-40"
+                        className="press h-9 flex-1 rounded-xl bg-primary text-xs font-extrabold shadow-md shadow-teal-500/25 hover:bg-teal-700 disabled:opacity-40"
                       >
                         {soldOut ? "Stok Habis" : "Beli Sekarang"}
                       </Button>
@@ -194,6 +239,41 @@ export default function StoreScreen({
           </div>
         </>
       )}
+
+      {/* Floating cart bar */}
+      <CartBar onOpen={onOpenCart} aboveNav={false} />
+
+      {/* Cross-store conflict dialog */}
+      <AlertDialog open={!!conflictProduct} onOpenChange={(o) => !o && setConflictProduct(null)}>
+        <AlertDialogContent className="max-w-[400px] rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="flex items-center gap-2">
+              <ShoppingBag className="h-5 w-5 text-primary" />
+              Ganti isi keranjang?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Keranjangmu berisi item dari toko lain. Transaksi antar UMKM harus terpisah — keranjang akan
+              diganti dengan item dari <b>{store?.name}</b>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="rounded-xl">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="rounded-xl bg-primary hover:bg-teal-700"
+              onClick={() => {
+                if (conflictProduct && store) {
+                  addItem(conflictProduct, store, true);
+                  setAddedFlash(conflictProduct.id);
+                  setTimeout(() => setAddedFlash(null), 900);
+                }
+                setConflictProduct(null);
+              }}
+            >
+              Ya, Ganti
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

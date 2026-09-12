@@ -11,7 +11,7 @@ import {
 } from "@/components/ui/input-otp";
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
-import { BrandWordmark } from "../toska-app";
+import { BrandWordmark } from "../brand";
 
 export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void }) {
   const [step, setStep] = useState<"phone" | "otp">("phone");
@@ -83,9 +83,9 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
   };
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
+    <div className="min-h-full min-h-screen w-full bg-white">
       {/* Decorative header */}
-      <div className="relative bg-brand-gradient pb-16 pt-14 px-6 rounded-b-[2.5rem] overflow-hidden">
+      <div className="relative bg-brand-gradient px-6 pb-16 pt-12 rounded-b-[2.5rem] overflow-hidden">
         <motion.div
           className="absolute -right-10 -top-10 h-44 w-44 rounded-full bg-white/10"
           animate={{ y: [0, 12, 0] }}
@@ -98,16 +98,16 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
         />
         <div className="relative z-10">
           <BrandWordmark light size="md" />
-          <h1 className="mt-8 text-[26px] font-extrabold leading-snug text-white">
+          <h1 className="mt-7 text-[24px] font-extrabold leading-snug text-white sm:text-[26px]">
             Selamat datang! 👋
           </h1>
           <p className="mt-1 text-sm text-teal-50/90">
-            Masuk dengan nomor teleponmu, gratis & tanpa ribet.
+            Masuk dengan nomor teleponmu, gratis &amp; tanpa ribet.
           </p>
         </div>
       </div>
 
-      <div className="flex-1 px-6 -mt-8">
+      <div className="relative z-10 px-6 -mt-8 pb-10">
         <motion.div
           layout
           className="rounded-3xl bg-white p-6 card-soft border border-teal-50"
@@ -126,7 +126,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
                   Nomor Telepon
                 </div>
                 <div className="mt-3 flex items-center gap-2 rounded-2xl border border-input bg-muted/40 px-4 py-3.5 focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/30 transition-all">
-                  <span className="flex items-center gap-1.5 border-r border-border pr-2.5 text-sm font-bold text-foreground">
+                  <span className="flex shrink-0 items-center gap-1.5 border-r border-border pr-2.5 text-sm font-bold text-foreground">
                     🇮🇩 +62
                   </span>
                   <input
@@ -136,7 +136,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
                     value={phone}
                     onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 14))}
                     onKeyDown={(e) => e.key === "Enter" && sendOtp()}
-                    className="w-full bg-transparent text-base font-semibold tracking-wide outline-none placeholder:text-slate-300"
+                    className="w-full min-w-0 flex-1 bg-transparent text-base font-semibold tracking-wide outline-none placeholder:text-slate-300"
                     aria-label="Nomor telepon"
                   />
                 </div>
@@ -151,7 +151,8 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
                 </Button>
 
                 <p className="mt-4 text-center text-[11px] leading-relaxed text-muted-foreground">
-                  Dengan masuk, kamu setuju dengan Syarat & Ketentuan serta Kebijakan Privasi TOSKA.
+                  Dengan masuk, kamu setuju dengan Syarat &amp; Ketentuan serta Kebijakan Privasi
+                  Jajan Riyen.
                 </p>
               </motion.div>
             ) : (
@@ -181,7 +182,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
                     <ShieldCheck className="h-4 w-4" />
                   </span>
                   <div className="text-[11px] leading-relaxed text-teal-900">
-                    <span className="font-bold">TOSKA:</span> Kode verifikasi kamu{" "}
+                    <span className="font-bold">Jajan Riyen:</span> Kode verifikasi kamu{" "}
                     <span className="font-mono text-sm font-extrabold tracking-widest text-primary">{generatedOtp}</span>
                     . Jangan bagikan ke siapa pun. (Simulasi SMS untuk demo)
                   </div>

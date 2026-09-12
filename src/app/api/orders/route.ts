@@ -3,11 +3,16 @@ import { db } from "@/lib/db";
 
 function generateOrderCode() {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "TSK-";
+  let code = "JR-";
   for (let i = 0; i < 6; i++) {
     code += chars.charAt(Math.floor(Math.random() * chars.length));
   }
   return code;
+}
+
+interface IncomingItem {
+  productId: string;
+  quantity: number;
 }
 
 export async function GET(req: NextRequest) {
@@ -26,7 +31,7 @@ export async function GET(req: NextRequest) {
     const orders = await db.order.findMany({
       where: userId ? { userId } : { storeId: storeId! },
       include: {
-        product: true,
+        items: true,
         store: true,
         user: { select: { id: true, phone: true, name: true } },
       },
@@ -42,45 +47,117 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, productId, quantity, paymentMethod } = await req.json();
+    const { userId, storeId, paymentMethod, items } = (await req.json()) as {
+      userId: string;
+      storeId?: string;
+      paymentMethod: string;
+      items: IncomingItem[];
+    };
 
-    if (!userId || !productId || !quantity || quantity < 1) {
-      return NextResponse.json({ error: "Data pesanan tidak lengkap" }, { status: 400 });
+    if (!userId || !items || !Array.isArray(items) || items.length === 0) {
+      return NextResponse.json(
+        { error: "Data pesanan tidak lengkap (minimal 1 produk)" },
+        { status: 400 }
+      );
     }
     if (paymentMethod !== "TUNAI" && paymentMethod !== "QRIS") {
       return NextResponse.json({ error: "Metode pembayaran tidak valid" }, { status: 400 });
     }
 
-    const product = await db.product.findUnique({ where: { id: productId } });
-    if (!product) {
-      return NextResponse.json({ error: "Produk tidak ditemukan" }, { status: 404 });
-    }
-    if (product.stock < quantity) {
-      return NextResponse.json({ error: "Stok tidak mencukupi" }, { status: 409 });
+    // Normalize quantities
+    const normalized = items
+      .map((it) => ({
+        productId: String(it.productId),
+        quantity: Math.max(1, Math.floor(Number(it.quantity) || 0)),
+      }))
+      .filter((it) => it.productId);
+
+    if (normalized.length === 0) {
+      return NextResponse.json({ error: "Item pesanan tidak valid" }, { status: 400 });
     }
 
+    // Dedupe by product (sum quantities)
+    const qtyByProduct = new Map<string, number>();
+    for (const it of normalized) {
+      qtyByProduct.set(it.productId, (qtyByProduct.get(it.productId) ?? 0) + it.quantity);
+    }
+
+    const products = await db.product.findMany({
+      where: { id: { in: [...qtyByProduct.keys()] } },
+    });
+
+    if (products.length !== qtyByProduct.size) {
+      return NextResponse.json(
+        { error: "Ada produk yang tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+
+    // ALL items must belong to ONE UMKM (store) — transactions are never merged across stores
+    const storeIds = new Set(products.map((p) => p.storeId));
+    if (storeIds.size > 1) {
+      return NextResponse.json(
+        { error: "Pesanan harus dari satu toko yang sama. Transaksi antar UMKM tidak dapat digabung." },
+        { status: 409 }
+      );
+    }
+    if (storeId && products[0].storeId !== storeId) {
+      return NextResponse.json(
+        { error: "Produk tidak sesuai dengan toko pesanan" },
+        { status: 409 }
+      );
+    }
+
+    // Stock validation
+    for (const p of products) {
+      const need = qtyByProduct.get(p.id)!;
+      if (p.stock < need) {
+        return NextResponse.json(
+          { error: `Stok "${p.name}" tidak mencukupi (sisa ${p.stock})` },
+          { status: 409 }
+        );
+      }
+    }
+
+    const orderStoreId = products[0].storeId;
+
     const order = await db.$transaction(async (tx) => {
+      const totalPrice = products.reduce(
+        (sum, p) => sum + p.price * qtyByProduct.get(p.id)!,
+        0
+      );
+      const quantity = [...qtyByProduct.values()].reduce((a, b) => a + b, 0);
+
       const created = await tx.order.create({
         data: {
           code: generateOrderCode(),
-          userId,
-          productId,
-          storeId: product.storeId,
+          user: { connect: { id: userId } },
+          store: { connect: { id: orderStoreId } },
           quantity,
-          totalPrice: product.price * quantity,
+          totalPrice,
           paymentMethod,
           status: "PENDING",
+          items: {
+            create: products.map((p) => ({
+              product: { connect: { id: p.id } },
+              name: p.name,
+              price: p.price,
+              quantity: qtyByProduct.get(p.id)!,
+              emoji: p.emoji,
+              imageUrl: p.imageUrl,
+            })),
+          },
         },
-        include: { product: true, store: true },
+        include: { items: true, store: true },
       });
 
-      await tx.product.update({
-        where: { id: productId },
-        data: {
-          sold: { increment: quantity },
-          stock: { decrement: quantity },
-        },
-      });
+      for (const p of products) {
+        const need = qtyByProduct.get(p.id)!;
+        await tx.product.update({
+          where: { id: p.id },
+          data: { sold: { increment: need }, stock: { decrement: need } },
+        });
+      }
 
       return created;
     });

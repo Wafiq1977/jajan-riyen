@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { motion, AnimatePresence } from "framer-motion";
+import { motion } from "framer-motion";
 import {
   ArrowLeft,
   Banknote,
@@ -9,15 +9,12 @@ import {
   CheckCircle2,
   Minus,
   Plus,
-  Loader2,
-  ScanLine,
-  Timer,
 } from "lucide-react";
-import QRCodeLib from "qrcode";
 import type { PaymentMethod, Product, Store, User } from "@/lib/types";
 import { formatRupiah, discountPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { QrisPanel } from "../widgets";
 import { ProductThumb } from "../shared";
 
 export default function CheckoutScreen({
@@ -37,7 +34,6 @@ export default function CheckoutScreen({
   const [store, setStore] = useState<Store | null>(null);
   const [qty, setQty] = useState(1);
   const [method, setMethod] = useState<PaymentMethod>("TUNAI");
-  const [qrDataUrl, setQrDataUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,27 +61,6 @@ export default function CheckoutScreen({
     [product, qty]
   );
 
-  // Generate QR payload when QRIS selected
-  useEffect(() => {
-    if (method !== "QRIS" || !product || !user) return;
-    const payload = [
-      "TOSKAPAY",
-      "QRIS",
-      `MERCHANT:${store?.name ?? "TOSKA"}`,
-      `MID:${(store?.id ?? "0000").slice(-8).toUpperCase()}`,
-      `ITEM:${product.name}`.slice(0, 60),
-      `AMOUNT:${total}`,
-    ].join("|");
-    QRCodeLib.toDataURL(payload, {
-      width: 512,
-      margin: 1,
-      color: { dark: "#0f2e2b", light: "#ffffff" },
-      errorCorrectionLevel: "M",
-    })
-      .then((url) => setQrDataUrl(url))
-      .catch(() => setQrDataUrl(null));
-  }, [method, product, user, store, total]);
-
   const submit = async () => {
     if (!user || !product || submitting) return;
     setSubmitting(true);
@@ -94,7 +69,12 @@ export default function CheckoutScreen({
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: user.id, productId, quantity: qty, paymentMethod: method }),
+        body: JSON.stringify({
+          userId: user.id,
+          storeId,
+          paymentMethod: method,
+          items: [{ productId, quantity: qty }],
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal membuat pesanan");
@@ -106,6 +86,7 @@ export default function CheckoutScreen({
   };
 
   const maxQty = product ? Math.min(product.stock, 10) : 10;
+  const pct = product ? discountPercent(product.price, product.originalPrice) : null;
 
   return (
     <div className="pb-32">
@@ -117,7 +98,7 @@ export default function CheckoutScreen({
             className="press flex h-9 w-9 items-center justify-center rounded-full bg-teal-50 text-primary"
             aria-label="Kembali"
           >
-            <ArrowLeft className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+            <ArrowLeft className="h-[18px] w-[18px]" />
           </button>
           <h1 className="text-base font-extrabold">Checkout</h1>
         </div>
@@ -136,7 +117,14 @@ export default function CheckoutScreen({
               <div className="min-w-0 flex-1">
                 <p className="text-[10px] font-bold uppercase tracking-wide text-primary">{store.name}</p>
                 <h3 className="truncate text-sm font-extrabold text-foreground">{product.name}</h3>
-                <p className="mt-0.5 text-sm font-extrabold text-primary">{formatRupiah(product.price)}</p>
+                <div className="mt-0.5 flex items-baseline gap-1.5">
+                  <span className="text-sm font-extrabold text-primary">{formatRupiah(product.price)}</span>
+                  {pct && (
+                    <span className="rounded bg-red-50 px-1 py-px text-[9px] font-extrabold text-red-500">
+                      -{pct}%
+                    </span>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -207,50 +195,14 @@ export default function CheckoutScreen({
           />
         </div>
 
-        {/* QRIS panel */}
-        <AnimatePresence>
-          {method === "QRIS" && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              transition={{ duration: 0.3, ease: "easeInOut" }}
-              className="overflow-hidden"
-            >
-              <div className="mt-3 rounded-3xl border border-violet-100 bg-gradient-to-b from-violet-50/70 to-white p-5 text-center">
-                <div className="flex items-center justify-center gap-2">
-                  <span className="rounded-md bg-violet-600 px-2 py-0.5 text-[10px] font-black tracking-widest text-white">
-                    QRIS
-                  </span>
-                  <span className="text-[10px] font-bold text-violet-500">1 QRIS untuk semua aplikasi pembayaran</span>
-                </div>
-                <div className="mx-auto mt-3 w-fit rounded-2xl border-2 border-violet-200 bg-white p-3 shadow-inner">
-                  {qrDataUrl ? (
-                    <motion.img
-                      initial={{ opacity: 0, scale: 0.9 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      src={qrDataUrl}
-                      alt="Kode QRIS pembayaran"
-                      className="h-44 w-44"
-                    />
-                  ) : (
-                    <div className="flex h-44 w-44 items-center justify-center">
-                      <Loader2 className="h-6 w-6 animate-spin text-violet-300" />
-                    </div>
-                  )}
-                </div>
-                <div className="mt-3 flex items-center justify-center gap-1.5 text-[11px] font-semibold text-violet-600">
-                  <ScanLine className="h-3.5 w-3.5" />
-                  Scan pakai GoPay, OVO, DANA, m-Banking
-                </div>
-                <div className="mt-3 flex items-center justify-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-slate-500 shadow-sm">
-                  <Timer className="h-3 w-3 text-violet-400" />
-                  Bayar sebelum membuat pesanan — ini simulasi, langsung tekan Buat Pesanan
-                </div>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+        {method === "QRIS" && product && store && (
+          <QrisPanel
+            merchantName={store.name}
+            merchantId={store.id}
+            description={product.name}
+            amount={total}
+          />
+        )}
 
         {method === "TUNAI" && (
           <motion.div
@@ -300,7 +252,7 @@ export default function CheckoutScreen({
               className="press ml-auto h-12 min-w-[180px] flex-1 rounded-2xl bg-primary text-sm font-extrabold shadow-lg shadow-teal-500/30 hover:bg-teal-700 disabled:opacity-40"
             >
               {submitting ? (
-                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" />
               ) : (
                 <span className="inline-flex items-center gap-1.5">
                   <CheckCircle2 className="h-4 w-4" />

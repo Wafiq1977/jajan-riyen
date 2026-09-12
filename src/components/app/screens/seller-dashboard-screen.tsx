@@ -3,16 +3,17 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import {
+  ArrowLeft,
   Package,
   ClipboardList,
   Wallet,
   BadgeCheck,
   Plus,
   Trash2,
-  Loader2,
   Store as StoreIcon,
   ChevronRight,
   CircleDollarSign,
+  ShieldCheck,
 } from "lucide-react";
 import {
   Dialog,
@@ -38,17 +39,19 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import type { Order, Product, Store, User } from "@/lib/types";
-import { formatRupiah, formatDateTime, maskPhone, discountPercent } from "@/lib/format";
+import { formatRupiah, formatRupiahCompact, formatDateTime, maskPhone, discountPercent } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { ProductThumb, StatusBadge, PaymentBadge, EmptyState, SkeletonList, Stars } from "../shared";
+import { StatusBadge, PaymentBadge, EmptyState, SkeletonList, Stars } from "../shared";
 
 const EMOJIS = ["🍽️", "🍛", "🧋", "☕", "🍰", "🍜", "🍔", "🍗", "🥟", "🍦", "🥞", "🍢", "🍚", "🧊", "🥤", "🌶️"];
 
 export default function SellerDashboardScreen({
   user,
+  onBack,
   onOpenStore,
 }: {
   user: User | null;
+  onBack: () => void;
   onOpenStore: (storeId: string) => void;
 }) {
   const store = user?.store ?? null;
@@ -100,56 +103,72 @@ export default function SellerDashboardScreen({
 
   if (!store) {
     return (
-      <EmptyState
-        icon={StoreIcon}
-        title="Kamu belum punya toko"
-        description="Daftar jadi penjual dulu lewat menu Akun ya."
-      />
+      <div className="pt-6">
+        <button onClick={onBack} className="press ml-4 flex items-center gap-1 text-sm font-bold text-primary">
+          <ArrowLeft className="h-4 w-4" /> Kembali
+        </button>
+        <EmptyState
+          icon={StoreIcon}
+          title="Kamu belum punya toko"
+          description="Daftar jadi penjual dulu lewat menu Akun ya."
+        />
+      </div>
     );
   }
 
   return (
     <div>
-      {/* Header */}
-      <div className="relative bg-brand-gradient px-5 pb-14 pt-6 rounded-b-[2rem] overflow-hidden">
+      {/* Separate seller page header — dark, distinct from buyer */}
+      <div className="relative overflow-hidden rounded-b-[2rem] bg-slate-900 px-5 pb-14 pt-6">
         <motion.div
-          className="absolute -left-10 -bottom-14 h-40 w-40 rounded-full bg-white/10"
+          className="absolute -left-10 -bottom-14 h-40 w-40 rounded-full bg-teal-400/15"
           animate={{ y: [0, -10, 0] }}
           transition={{ duration: 5, repeat: Infinity, ease: "easeInOut" }}
         />
-        <div className="relative z-10 flex items-start justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex h-13 w-13 h-[52px] w-[52px] items-center justify-center rounded-2xl bg-white text-2xl shadow-lg">
-              {store.category === "Minuman" ? "🧋" : store.category === "Dessert" ? "🍰" : "🍛"}
-            </div>
-            <div>
-              <h1 className="text-lg font-extrabold leading-tight text-white">{store.name}</h1>
-              <div className="mt-1 flex items-center gap-2 text-[11px] text-teal-50/90">
-                <Stars rating={store.rating} className="text-amber-300" />
-                <span>· {store.category}</span>
-              </div>
+        <div className="relative z-10 flex items-center justify-between">
+          <button
+            onClick={onBack}
+            className="press flex h-10 w-10 items-center justify-center rounded-full bg-white/10 text-white backdrop-blur"
+            aria-label="Kembali ke akun"
+          >
+            <ArrowLeft className="h-5 w-5" />
+          </button>
+          <span className="flex items-center gap-1.5 rounded-full bg-teal-400/15 px-3 py-1.5 text-[10px] font-black tracking-wide text-teal-300 ring-1 ring-teal-400/30">
+            <ShieldCheck className="h-3.5 w-3.5" /> MODE PENJUAL
+          </span>
+        </div>
+        <div className="relative z-10 mt-4 flex items-center gap-3">
+          <div className="flex h-[52px] w-[52px] items-center justify-center rounded-2xl bg-white text-2xl shadow-lg">
+            {store.category === "Minuman" ? "🧋" : store.category === "Dessert" ? "🍰" : "🍛"}
+          </div>
+          <div className="min-w-0">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-teal-300">Dashboard Penjual</p>
+            <h1 className="truncate text-lg font-extrabold leading-tight text-white">{store.name}</h1>
+            <div className="mt-0.5 flex items-center gap-2 text-[11px] text-white/60">
+              <Stars rating={store.rating} className="text-amber-300" />
+              <span>· {store.category}</span>
             </div>
           </div>
-          <span className="rounded-full bg-emerald-400/90 px-2.5 py-1 text-[10px] font-extrabold text-emerald-950">
+          <span className="ml-auto shrink-0 rounded-full bg-emerald-400/90 px-2.5 py-1 text-[10px] font-extrabold text-emerald-950">
             ● BUKA
           </span>
         </div>
         <button
           onClick={() => onOpenStore(store.id)}
-          className="press relative z-10 mt-4 flex w-full items-center justify-between rounded-2xl bg-white/12 bg-white/15 px-4 py-3 text-xs font-bold text-white backdrop-blur"
+          className="press relative z-10 mt-4 flex w-full items-center justify-between rounded-2xl bg-white/10 px-4 py-3 text-xs font-bold text-white backdrop-blur"
         >
-          <span>👀 Lihat tampilan tokomu di pembeli</span>
+          <span>👀 Lihat etalase tokomu (tampilan pembeli)</span>
           <ChevronRight className="h-4 w-4" />
         </button>
       </div>
 
       {/* Stats */}
-      <div className="relative -mt-8 z-10 px-5">
-        <div className="grid grid-cols-4 gap-2.5">
+      <div className="relative z-10 -mt-8 px-5">
+        <div className="grid grid-cols-4 gap-2">
           <StatCard icon={<Package className="h-4 w-4" />} value={products?.length ?? "…"} label="Produk" tone="bg-teal-50 text-teal-600" />
           <StatCard icon={<ClipboardList className="h-4 w-4" />} value={stats.pending} label="Baru" tone="bg-amber-50 text-amber-600" alert={stats.pending > 0} />
           <StatCard icon={<BadgeCheck className="h-4 w-4" />} value={stats.completed} label="Selesai" tone="bg-emerald-50 text-emerald-600" />
-          <StatCard icon={<Wallet className="h-4 w-4" />} value={formatRupiah(stats.revenue).replace("Rp", "")} label="Pendapatan" tone="bg-violet-50 text-violet-600" small />
+          <StatCard icon={<Wallet className="h-4 w-4" />} value={formatRupiahCompact(stats.revenue).replace("Rp", "")} label="Omzet (Rp)" tone="bg-violet-50 text-violet-600" small />
         </div>
       </div>
 
@@ -172,7 +191,9 @@ export default function SellerDashboardScreen({
                   transition={{ type: "spring", stiffness: 400, damping: 32 }}
                 />
               )}
-              <span className="relative z-10">{t === "orders" ? `Pesanan (${stats.pending + stats.processing})` : `Produk (${products?.length ?? 0})`}</span>
+              <span className="relative z-10">
+                {t === "orders" ? `Pesanan (${stats.pending + stats.processing})` : `Produk (${products?.length ?? 0})`}
+              </span>
             </button>
           ))}
         </div>
@@ -203,23 +224,51 @@ export default function SellerDashboardScreen({
                     <span className="font-mono text-[10px] font-bold text-slate-400">{order.code}</span>
                     <StatusBadge status={order.status} />
                   </div>
-                  <div className="mt-2.5 flex gap-3">
-                    <ProductThumb product={order.product} className="h-12 w-12 shrink-0" rounded="rounded-xl" />
-                    <div className="min-w-0 flex-1">
-                      <h3 className="truncate text-xs font-extrabold text-foreground">{order.product.name}</h3>
-                      <p className="mt-0.5 text-[10px] text-muted-foreground">
-                        {order.quantity}× · {maskPhone(order.user?.phone ?? "-")}
-                      </p>
-                      <div className="mt-1 flex items-center gap-1.5">
-                        <PaymentBadge method={order.paymentMethod} />
-                        <span className="text-[9px] font-semibold text-slate-400">{formatDateTime(order.createdAt)}</span>
+
+                  {/* Multi items */}
+                  <div
+                    className={cn(
+                      "mt-2.5 space-y-1",
+                      order.items.length > 3 && "max-h-40 overflow-y-auto pretty-scroll pr-1"
+                    )}
+                  >
+                    {order.items.map((item) => (
+                      <div key={item.id} className="flex items-center gap-2.5 rounded-xl bg-slate-50/70 px-2.5 py-2">
+                        <span className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-white text-sm">
+                          {item.imageUrl ? (
+                            <img src={item.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                          ) : (
+                            item.emoji
+                          )}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-[11px] font-bold text-foreground">{item.name}</p>
+                          <p className="text-[9px] text-muted-foreground">
+                            {formatRupiah(item.price)} × {item.quantity}
+                          </p>
+                        </div>
+                        <span className="shrink-0 text-[10px] font-extrabold text-slate-500">
+                          {formatRupiah(item.price * item.quantity)}
+                        </span>
                       </div>
+                    ))}
+                  </div>
+
+                  <div className="mt-2.5 flex items-center justify-between">
+                    <div className="flex items-center gap-1.5">
+                      <PaymentBadge method={order.paymentMethod} />
+                      <span className="text-[9px] font-semibold text-slate-400">
+                        {maskPhone(order.user?.phone ?? "-")} · {formatDateTime(order.createdAt)}
+                      </span>
                     </div>
                     <div className="text-right">
-                      <p className="text-[9px] font-semibold text-slate-400">Total</p>
+                      <p className="text-[9px] font-semibold text-slate-400">
+                        Total · {order.quantity} item
+                      </p>
                       <p className="text-sm font-extrabold text-primary">{formatRupiah(order.totalPrice)}</p>
                     </div>
                   </div>
+
                   {order.status === "PENDING" && (
                     <Button
                       onClick={() => updateOrderStatus(order.id, "PROCESSING")}
@@ -259,7 +308,13 @@ export default function SellerDashboardScreen({
                 transition={{ delay: Math.min(idx * 0.04, 0.25) }}
                 className="flex items-center gap-3 rounded-3xl border border-teal-50 bg-white p-3.5 card-soft"
               >
-                <ProductThumb product={p} className="h-14 w-14 shrink-0" rounded="rounded-xl" />
+                <span className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-teal-50 text-xl">
+                  {p.imageUrl ? (
+                    <img src={p.imageUrl} alt="" className="h-full w-full object-cover" loading="lazy" />
+                  ) : (
+                    p.emoji
+                  )}
+                </span>
                 <div className="min-w-0 flex-1">
                   <h3 className="truncate text-xs font-extrabold text-foreground">{p.name}</h3>
                   <div className="mt-0.5 flex items-baseline gap-1.5">
@@ -429,7 +484,7 @@ function AddProductDialog({
           </Button>
         )}
       </DialogTrigger>
-      <DialogContent className="max-w-[420px] rounded-3xl max-h-[85vh] overflow-y-auto pretty-scroll">
+      <DialogContent className="max-w-[420px] max-h-[85vh] overflow-y-auto rounded-3xl pretty-scroll">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2 text-left">
             <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-teal-50 text-primary">
@@ -530,7 +585,7 @@ function AddProductDialog({
             disabled={loading || !priceValid || !name.trim()}
             className="press h-12 w-full rounded-2xl bg-primary text-sm font-extrabold shadow-lg shadow-teal-500/30 hover:bg-teal-700 disabled:opacity-40"
           >
-            {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Simpan Produk"}
+            {loading ? <span className="h-5 w-5 animate-spin rounded-full border-2 border-white/40 border-t-white" /> : "Simpan Produk"}
           </Button>
         </div>
       </DialogContent>

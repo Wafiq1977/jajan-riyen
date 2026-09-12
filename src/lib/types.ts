@@ -39,18 +39,40 @@ export interface User {
   store?: Store | null;
 }
 
+export interface OrderItem {
+  id: string;
+  orderId: string;
+  productId: string;
+  name: string;
+  price: number;
+  quantity: number;
+  emoji: string;
+  imageUrl: string | null;
+}
+
 export interface Order {
   id: string;
   code: string;
   userId: string;
-  productId: string;
   storeId: string;
+  items: OrderItem[];
   quantity: number;
   totalPrice: number;
   paymentMethod: PaymentMethod;
   status: OrderStatus;
   createdAt: string;
-  product: Product;
   store: Store;
   user?: { id: string; phone: string; name: string | null };
+}
+
+/** Item inside the buyer cart (client-side only) */
+export interface CartItem {
+  productId: string;
+  name: string;
+  price: number;
+  originalPrice: number | null;
+  emoji: string;
+  imageUrl: string | null;
+  quantity: number;
+  stock: number;
 }
