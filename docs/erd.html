@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<title>ERD — Jajan Riyen</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+
+  :root{
+    --teal-900:#134e4a; --teal-700:#0f766e; --teal-600:#0d9488; --teal-500:#14b8a6;
+    --teal-100:#ccfbf1; --teal-50:#f0fdfa;
+    --ink:#1e293b; --sub:#64748b; --muted:#94a3b8; --line:#f1f5f9;
+  }
+
+  body{
+    font-family:'Inter','Segoe UI',-apple-system,BlinkMacSystemFont,'DejaVu Sans',system-ui,sans-serif;
+    background:#ffffff; color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  #root{ width:1900px; height:1448px; position:relative; background:#ffffff; }
+
+  /* ---------- Title ---------- */
+  .title{ position:absolute; top:22px; left:0; width:100%; text-align:center; z-index:2; }
+  .title h1{ font-size:33px; font-weight:800; letter-spacing:-.3px; color:var(--teal-900); }
+  .title h1 .erd{ color:var(--teal-600); }
+  .title h1 .sep{ color:#cbd5e1; font-weight:400; }
+  .title p{ font-size:15px; color:var(--sub); margin-top:6px; }
+  .title p b{ color:var(--teal-700); font-weight:600; }
+
+  /* ---------- Entity cards ---------- */
+  .entity{
+    position:absolute; width:420px; background:#ffffff; z-index:2;
+    border:2px solid var(--teal-600); border-radius:12px; overflow:hidden;
+    box-shadow:0 3px 14px rgba(15,118,110,.12);
+  }
+  .entity.primary{ border-color:var(--teal-700); }
+  .entity.aux{ border:2px dashed var(--muted); box-shadow:0 3px 14px rgba(71,85,105,.10); }
+
+  .e-head{
+    height:46px; padding:0 14px; display:flex; align-items:center; justify-content:space-between;
+    background:linear-gradient(135deg,#0d9488 0%,#14b8a6 100%);
+  }
+  .entity.primary .e-head{ background:linear-gradient(135deg,#0f766e 0%,#0d9488 100%); }
+  .entity.aux .e-head{ background:linear-gradient(135deg,#475569 0%,#64748b 100%); }
+  .e-name{ display:block; font-size:16px; font-weight:800; color:#fff; line-height:19px; letter-spacing:.2px; }
+  .e-sub{ display:block; font-size:11px; color:rgba(255,255,255,.78); line-height:14px; }
+  .e-count{
+    font-size:10px; font-weight:600; color:#fff; background:rgba(255,255,255,.16);
+    border:1px solid rgba(255,255,255,.30); padding:2px 9px; border-radius:999px; white-space:nowrap;
+  }
+
+  .row{
+    height:30px; padding:0 14px; display:flex; align-items:center; justify-content:space-between;
+    border-top:1px solid var(--line);
+  }
+  .row:first-child{ border-top:none; }
+  .row.pk{ background:var(--teal-50); }
+  .row.note{ height:42px; flex-direction:column; justify-content:center; align-items:stretch; }
+  .r-top{ display:flex; align-items:center; justify-content:space-between; }
+  .fname{ font-family:'DejaVu Sans Mono',ui-monospace,Menlo,Consolas,monospace;
+          font-size:12.5px; font-weight:600; color:#0f172a; }
+  .row.pk .fname{ color:var(--teal-700); }
+  .ftype{ font-family:'DejaVu Sans Mono',ui-monospace,Menlo,Consolas,monospace;
+          font-size:11px; color:var(--muted); margin-left:10px; white-space:nowrap; }
+  .fnote{ font-size:10.5px; color:var(--sub); margin-top:1px; }
+
+  .badge{
+    display:inline-block; font-size:9.5px; font-weight:800; letter-spacing:.5px;
+    padding:1.5px 6px; border-radius:5px; margin-left:6px; vertical-align:1px;
+  }
+  .badge.pk{ background:var(--teal-700); color:#fff; }
+  .badge.fk{ background:var(--teal-100); color:var(--teal-700); border:1px solid #5eead4; }
+  .badge.uq{ background:#f1f5f9; color:#475569; border:1px solid #e2e8f0; }
+
+  /* ---------- Connectors ---------- */
+  svg.wires{ position:absolute; inset:0; z-index:1; pointer-events:none; }
+  .wire{ stroke:var(--teal-700); stroke-width:2; fill:none; stroke-linecap:round; }
+  .foot{ stroke:var(--teal-700); stroke-width:2; fill:none; stroke-linecap:round; }
+  .circle{ stroke:var(--teal-700); stroke-width:2; fill:#ffffff; }
+  .wire.dashed{ stroke:#94a3b8; stroke-dasharray:7 6; }
+
+  /* ---------- Labels on lines ---------- */
+  .pill{
+    position:absolute; transform:translate(-50%,-50%); z-index:3;
+    background:#ffffff; border:1.5px solid #5eead4; color:var(--teal-700);
+    font-size:12.5px; font-weight:600; padding:4px 13px; border-radius:999px;
+    white-space:nowrap; box-shadow:0 1px 4px rgba(15,118,110,.10); text-align:center; line-height:1.3;
+  }
+  .pill.two{ white-space:normal; width:206px; padding:5px 10px; }
+  .pill.dashed{ border-style:dashed; border-color:#cbd5e1; color:var(--sub); }
+  .chip{
+    position:absolute; transform:translate(-50%,-50%); z-index:3;
+    background:#fff; border:1.5px solid var(--teal-600); color:var(--teal-700);
+    font-size:11.5px; font-weight:800; height:22px; min-width:22px; padding:0 6px;
+    display:flex; align-items:center; justify-content:center; border-radius:999px;
+  }
+
+  /* ---------- Legend & footer ---------- */
+  .legend{
+    position:absolute; top:1348px; left:50%; transform:translateX(-50%); z-index:2;
+    display:flex; align-items:center; gap:22px; background:#f8fafc; border:1px solid #e2e8f0;
+    border-radius:12px; padding:10px 22px; font-size:12px; color:#475569; white-space:nowrap;
+  }
+  .legend .item{ display:flex; align-items:center; gap:7px; }
+  .legend .divider{ width:1px; height:18px; background:#e2e8f0; }
+  .foot{
+    position:absolute; top:1414px; left:0; width:100%; text-align:center; z-index:2;
+    font-size:11.5px; color:var(--muted);
+  }
+</style>
+</head>
+<body>
+<div id="root">
+
+  <!-- ======================= TITLE ======================= -->
+  <div class="title">
+    <h1><span class="erd">ERD</span> <span class="sep">—</span> Jajan Riyen</h1>
+    <p>Marketplace UMKM · <b>Prisma + SQLite</b></p>
+  </div>
+
+  <!-- ======================= WIRES (SVG) ======================= -->
+  <svg class="wires" width="1900" height="1448" viewBox="0 0 1900 1448">
+
+    <!-- USER 1 —— 0..1 STORE (y=400) -->
+    <path class="wire" d="M500,400 H740"/>
+    <path class="foot" d="M506,393 V407 M512,393 V407"/>
+    <path class="foot" d="M712,393 V407 M718,393 V407"/>
+    <circle class="circle" cx="730" cy="400" r="5"/>
+
+    <!-- STORE 1 —— N ORDER (y=310) -->
+    <path class="wire" d="M1160,310 H1400"/>
+    <path class="foot" d="M1166,303 V317 M1172,303 V317"/>
+    <path class="foot" d="M1382,310 L1400,303 M1382,310 L1400,317 M1376,303 V317"/>
+
+    <!-- STORE 1 —— N PRODUCT (x=950 vertical) -->
+    <path class="wire" d="M950,790 V880"/>
+    <path class="foot" d="M943,796 H957 M943,802 H957"/>
+    <path class="foot" d="M950,862 L943,880 M950,862 L957,880 M943,868 H957"/>
+
+    <!-- ORDER 1 —— N ORDER_ITEM (x=1610 vertical) -->
+    <path class="wire" d="M1610,596 V880"/>
+    <path class="foot" d="M1603,602 H1617 M1603,608 H1617"/>
+    <path class="foot" d="M1610,862 L1603,880 M1610,862 L1617,880 M1603,868 H1617"/>
+
+    <!-- PRODUCT 1 —— N ORDER_ITEM (y=980) -->
+    <path class="wire" d="M1160,980 H1400"/>
+    <path class="foot" d="M1166,973 V987 M1172,973 V987"/>
+    <path class="foot" d="M1382,980 L1400,973 M1382,980 L1400,987 M1376,973 V987"/>
+
+    <!-- USER 1 ——— N ORDER : koridor atas -->
+    <path class="wire" d="M290,250 L290,152 Q290,140 302,140 L1598,140 Q1610,140 1610,152 L1610,210"/>
+    <path class="foot" d="M283,244 H297 M283,238 H297"/>
+    <path class="foot" d="M1610,192 L1603,210 M1610,192 L1617,210 M1603,198 H1617"/>
+
+    <!-- VERIFICATION_CODE ⤍ USER : relasi logis (putus-putus) -->
+    <path class="wire dashed" d="M290,564 V880"/>
+  </svg>
+
+  <!-- ======================= LABEL PILLS & CARDINALITY CHIPS ======================= -->
+  <div class="pill two" style="left:620px; top:400px;">mendaftar sebagai penjual / memiliki toko</div>
+  <div class="chip" style="left:516px; top:438px;">1</div>
+  <div class="chip" style="left:712px; top:438px;">0..1</div>
+
+  <div class="pill" style="left:1280px; top:310px;">menerima pesanan</div>
+  <div class="chip" style="left:1178px; top:336px;">1</div>
+  <div class="chip" style="left:1386px; top:336px;">N</div>
+
+  <div class="pill" style="left:950px; top:833px;">menjual produk</div>
+  <div class="chip" style="left:972px; top:800px;">1</div>
+  <div class="chip" style="left:972px; top:864px;">N</div>
+
+  <div class="pill" style="left:1610px; top:733px;">berisi item</div>
+  <div class="chip" style="left:1632px; top:612px;">1</div>
+  <div class="chip" style="left:1632px; top:864px;">N</div>
+
+  <div class="pill" style="left:1280px; top:980px;">direferensikan item</div>
+  <div class="chip" style="left:1178px; top:1008px;">1</div>
+  <div class="chip" style="left:1386px; top:1008px;">N</div>
+
+  <div class="pill" style="left:950px; top:140px;">melakukan pesanan</div>
+  <div class="chip" style="left:312px; top:228px;">1</div>
+  <div class="chip" style="left:1582px; top:188px;">N</div>
+
+  <div class="pill dashed" style="left:290px; top:712px;">diverifikasi via OTP</div>
+
+  <!-- ======================= ENTITY : USER ======================= -->
+  <div class="entity" style="left:80px; top:250px;">
+    <div class="e-head">
+      <div><span class="e-name">User</span><span class="e-sub">Pengguna</span></div>
+      <span class="e-count">8 kolom</span>
+    </div>
+    <div class="row pk"><div class="r-top"><span class="fname">id</span><span class="badge pk">PK</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">phone</span><span class="badge uq">UNIQUE</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">name</span></div><span class="ftype">String?</span></div>
+    <div class="row note"><div class="r-top"><span class="fname">nik</span><span class="ftype">String?</span></div><div class="fnote">NIK 16 digit · khusus penjual</div></div>
+    <div class="row note"><div class="r-top"><span class="fname">address</span><span class="ftype">String?</span></div><div class="fnote">alamat sesuai KTP</div></div>
+    <div class="row"><div class="r-top"><span class="fname">isSeller</span></div><span class="ftype">Boolean</span></div>
+    <div class="row"><div class="r-top"><span class="fname">createdAt</span></div><span class="ftype">DateTime</span></div>
+    <div class="row"><div class="r-top"><span class="fname">updatedAt</span></div><span class="ftype">DateTime</span></div>
+  </div>
+
+  <!-- ======================= ENTITY : STORE ======================= -->
+  <div class="entity primary" style="left:740px; top:170px;">
+    <div class="e-head">
+      <div><span class="e-name">Store</span><span class="e-sub">Toko UMKM</span></div>
+      <span class="e-count">19 kolom</span>
+    </div>
+    <div class="row pk"><div class="r-top"><span class="fname">id</span><span class="badge pk">PK</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">userId</span><span class="badge fk">FK</span><span class="badge uq">UNIQUE</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">name</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">category</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">description</span></div><span class="ftype">String?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">address</span></div><span class="ftype">String?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">latitude</span></div><span class="ftype">Float?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">longitude</span></div><span class="ftype">Float?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">logoUrl</span></div><span class="ftype">String?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">bannerUrl</span></div><span class="ftype">String?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">qrisEnabled</span></div><span class="ftype">Boolean</span></div>
+    <div class="row"><div class="r-top"><span class="fname">qrisImageUrl</span></div><span class="ftype">String?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">qrisCode</span></div><span class="ftype">String?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">rating</span></div><span class="ftype">Float</span></div>
+    <div class="row"><div class="r-top"><span class="fname">distanceKm</span></div><span class="ftype">Float</span></div>
+    <div class="row"><div class="r-top"><span class="fname">isOpen</span></div><span class="ftype">Boolean</span></div>
+    <div class="row"><div class="r-top"><span class="fname">openTime</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">closeTime</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">createdAt</span></div><span class="ftype">DateTime</span></div>
+  </div>
+
+  <!-- ======================= ENTITY : ORDER ======================= -->
+  <div class="entity primary" style="left:1400px; top:210px;">
+    <div class="e-head">
+      <div><span class="e-name">Order</span><span class="e-sub">Pesanan</span></div>
+      <span class="e-count">10 kolom</span>
+    </div>
+    <div class="row pk"><div class="r-top"><span class="fname">id</span><span class="badge pk">PK</span></div><span class="ftype">String</span></div>
+    <div class="row note"><div class="r-top"><span class="fname">code</span><span class="badge uq">UNIQUE</span><span class="ftype">String</span></div><div class="fnote">format JR-XXXXXX · barcode</div></div>
+    <div class="row"><div class="r-top"><span class="fname">userId</span><span class="badge fk">FK</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">storeId</span><span class="badge fk">FK</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">quantity</span></div><span class="ftype">Int</span></div>
+    <div class="row"><div class="r-top"><span class="fname">totalPrice</span></div><span class="ftype">Int</span></div>
+    <div class="row note"><div class="r-top"><span class="fname">paymentMethod</span><span class="ftype">String</span></div><div class="fnote">TUNAI | QRIS</div></div>
+    <div class="row note"><div class="r-top"><span class="fname">status</span><span class="ftype">String</span></div><div class="fnote">PENDING · PROCESSING · COMPLETED · CANCELLED</div></div>
+    <div class="row"><div class="r-top"><span class="fname">createdAt</span></div><span class="ftype">DateTime</span></div>
+    <div class="row"><div class="r-top"><span class="fname">updatedAt</span></div><span class="ftype">DateTime</span></div>
+  </div>
+
+  <!-- ======================= ENTITY : PRODUCT ======================= -->
+  <div class="entity" style="left:740px; top:880px;">
+    <div class="e-head">
+      <div><span class="e-name">Product</span><span class="e-sub">Produk</span></div>
+      <span class="e-count">13 kolom</span>
+    </div>
+    <div class="row pk"><div class="r-top"><span class="fname">id</span><span class="badge pk">PK</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">storeId</span><span class="badge fk">FK</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">name</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">description</span></div><span class="ftype">String?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">price</span></div><span class="ftype">Int</span></div>
+    <div class="row"><div class="r-top"><span class="fname">originalPrice</span></div><span class="ftype">Int?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">imageUrl</span></div><span class="ftype">String?</span></div>
+    <div class="row"><div class="r-top"><span class="fname">emoji</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">category</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">stock</span></div><span class="ftype">Int</span></div>
+    <div class="row"><div class="r-top"><span class="fname">sold</span></div><span class="ftype">Int</span></div>
+    <div class="row"><div class="r-top"><span class="fname">isFlashSale</span></div><span class="ftype">Boolean</span></div>
+    <div class="row"><div class="r-top"><span class="fname">createdAt</span></div><span class="ftype">DateTime</span></div>
+  </div>
+
+  <!-- ======================= ENTITY : ORDER_ITEM ======================= -->
+  <div class="entity" style="left:1400px; top:880px;">
+    <div class="e-head">
+      <div><span class="e-name">OrderItem</span><span class="e-sub">Item Pesanan</span></div>
+      <span class="e-count">8 kolom</span>
+    </div>
+    <div class="row pk"><div class="r-top"><span class="fname">id</span><span class="badge pk">PK</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">orderId</span><span class="badge fk">FK</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">productId</span><span class="badge fk">FK</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">name</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">price</span></div><span class="ftype">Int</span></div>
+    <div class="row"><div class="r-top"><span class="fname">quantity</span></div><span class="ftype">Int</span></div>
+    <div class="row"><div class="r-top"><span class="fname">emoji</span></div><span class="ftype">String</span></div>
+    <div class="row"><div class="r-top"><span class="fname">imageUrl</span></div><span class="ftype">String?</span></div>
+  </div>
+
+  <!-- ======================= ENTITY : VERIFICATION_CODE ======================= -->
+  <div class="entity aux" style="left:80px; top:880px;">
+    <div class="e-head">
+      <div><span class="e-name">VerificationCode</span><span class="e-sub">Kode OTP</span></div>
+      <span class="e-count">7 kolom</span>
+    </div>
+    <div class="row pk"><div class="r-top"><span class="fname">id</span><span class="badge pk">PK</span></div><span class="ftype">String</span></div>
+    <div class="row note"><div class="r-top"><span class="fname">phone</span><span class="badge uq">IDX</span><span class="ftype">String</span></div><div class="fnote">nomor tujuan · format 62xxx · terindeks</div></div>
+    <div class="row note"><div class="r-top"><span class="fname">codeHash</span><span class="ftype">String</span></div><div class="fnote">SHA-256 (code + salt)</div></div>
+    <div class="row"><div class="r-top"><span class="fname">expiresAt</span></div><span class="ftype">DateTime</span></div>
+    <div class="row"><div class="r-top"><span class="fname">attempts</span></div><span class="ftype">Int</span></div>
+    <div class="row"><div class="r-top"><span class="fname">consumed</span></div><span class="ftype">Boolean</span></div>
+    <div class="row"><div class="r-top"><span class="fname">createdAt</span></div><span class="ftype">DateTime</span></div>
+  </div>
+
+  <!-- ======================= LEGEND ======================= -->
+  <div class="legend">
+    <span class="item"><span class="badge pk">PK</span> Primary Key</span>
+    <span class="divider"></span>
+    <span class="item"><span class="badge fk">FK</span> Foreign Key</span>
+    <span class="divider"></span>
+    <span class="item"><span class="badge uq">UNIQUE</span> Unique</span>
+    <span class="divider"></span>
+    <span class="item">
+      <svg width="36" height="18" viewBox="0 0 36 18"><path d="M2,9 H24 M24,9 L34,3 M24,9 L34,15 M18,3 V15" stroke="#0f766e" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
+      crow's foot = banyak (N)
+    </span>
+    <span class="divider"></span>
+    <span class="item">
+      <svg width="36" height="18" viewBox="0 0 36 18"><path d="M2,9 H34" stroke="#94a3b8" stroke-width="2" fill="none" stroke-dasharray="6 5" stroke-linecap="round"/></svg>
+      putus-putus = relasi logis (OTP)
+    </span>
+  </div>
+
+  <div class="foot">Sumber skema: prisma/schema.prisma · 6 tabel · SQLite · Notasi crow's foot · Jajan Riyen © 2025</div>
+</div>
+</body>
+</html>

@@ -19,6 +19,9 @@ import {
   Smartphone,
   Share2,
   Download,
+  FileImage,
+  Workflow,
+  Network,
 } from "lucide-react";
 import {
   Dialog,
@@ -210,6 +213,7 @@ export default function AccountScreen({
           )}
           <HelpDialog />
           <InstallAppDialog />
+          <DocsDialog />
           <AboutDialog />
           <LogoutDialog onLogout={onLoggedOut} />
         </div>
@@ -378,6 +382,69 @@ function InstallAppDialog() {
           <p className="text-center text-[10px] leading-relaxed text-muted-foreground">
             Ingin APK untuk dibagikan / masuk Play Store? Ikuti langkah PWABuilder di
             <b> PANDUAN-DEPLOY.md</b>.
+          </p>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function DocsDialog() {
+  const docs = [
+    {
+      href: "/docs/erd.png",
+      icon: <Network className="h-4 w-4" />,
+      title: "ERD (Entity Relationship Diagram)",
+      desc: "Struktur basis data — User, Store, Product, Order, OrderItem, VerificationCode",
+    },
+    {
+      href: "/docs/usecase.png",
+      icon: <Workflow className="h-4 w-4" />,
+      title: "Use Case Diagram",
+      desc: "Aktivitas Pembeli & Penjual UMKM beserta sistem eksternal (WA/SMS, Peta)",
+    },
+  ];
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button className="press flex w-full items-center gap-3.5 px-4 py-4 text-left hover:bg-teal-50/40">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-primary">
+            <FileImage className="h-[18px] w-[18px]" />
+          </span>
+          <span className="flex-1">
+            <span className="block text-sm font-bold text-foreground">Dokumentasi Proyek</span>
+            <span className="block text-[10px] font-medium text-muted-foreground">ERD &amp; Use Case — file PNG</span>
+          </span>
+          <ChevronRight className="h-4 w-4 text-slate-300" />
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-[400px] rounded-3xl">
+        <DialogHeader>
+          <DialogTitle className="text-left">Dokumentasi Proyek 📐</DialogTitle>
+          <DialogDescription className="text-left">
+            Diagram desain sistem Jajan Riyen dalam format PNG. Ketuk untuk membuka, lalu simpan/unduh gambar bila perlu.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          {docs.map((d) => (
+            <a
+              key={d.href}
+              href={d.href}
+              target="_blank"
+              rel="noreferrer"
+              className="press flex items-start gap-3 rounded-2xl border border-teal-50 bg-teal-50/40 p-3.5 hover:bg-teal-50/70"
+            >
+              <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-primary shadow-sm">
+                {d.icon}
+              </span>
+              <span className="min-w-0">
+                <span className="block text-xs font-extrabold text-teal-800">{d.title}</span>
+                <span className="mt-0.5 block text-[11px] leading-relaxed text-teal-900/70">{d.desc}</span>
+              </span>
+            </a>
+          ))}
+          <p className="text-center text-[10px] text-muted-foreground">
+            Sumber: docs/erd.png &amp; docs/usecase.png
           </p>
         </div>
       </DialogContent>

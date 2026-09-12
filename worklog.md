@@ -167,3 +167,65 @@ Stage Summary:
 - Semua 8 permintaan selesai & terverifikasi browser: (1) OTP dikirim beneran via WA/SMS begitu token gateway diisi (arsitektur siap, mode dev otomatis tanpa token), (2) scan barcode engine native BarcodeDetector + torch untuk HP (HTTPS wajib, tercakup di panduan), (3) lokasi GPS + reverse geocoding + jarak real, (4) pendaftaran penjual wajib NIK/nama KTP/alamat + pin peta atau share Gmaps, (5) scanner hanya di dashboard penjual (pembeli tetap punya barcode & lacak), (6) notifikasi dihapus total, (7) logo garis "mulut melet" (bibir + lidah menjulur) tanpa latar putih, (8) PANDUAN-DEPLOY.md lengkap + aplikasi sudah PWA-installable (bisa diinstall ke HP, bisa dijadikan APK via PWABuilder).
 - Keputusan kunci: OTP ter-hash + kedaluwarsa + rate limit di server; tanpa gateway token sistem otomatis turun ke mode dev (kode tampil) agar tidak pernah "mati"; scanner tidak lagi dibagikan ke pembeli (hanya tampilan barcode); upload tetap ke public/uploads (catatan Cloudinary untuk Vercel ada di panduan).
 - Artefak baru: lib/otp.ts, api/auth/otp, api/auth/verify, map-picker.tsx, pwa-register.tsx, manifest.webmanifest, sw.js, icons/*, scripts/gen-icons.mjs, PANDUAN-DEPLOY.md, .env.example; schema VerificationCode; perubahan besar di login/seller-form/widgets/order-widgets/jr-app.
+
+---
+Task ID: 3-a
+Agent: general-purpose (ERD diagram)
+Task: Buat diagram ERD Jajan Riyen dalam PNG
+
+Work Log:
+- Baca worklog.md (konteks: schema sudah punya 6 model — User, Store, Product, Order, OrderItem, VerificationCode) dan baca prisma/schema.prisma sebagai source of truth; jumlah kolom per entitas diverifikasi (User 8, Store 19, Product 13, Order 10, OrderItem 8, VerificationCode 7).
+- Invoke Skill "charts" → routing untuk structural diagram = Playwright + CSS (bukan matplotlib/graphviz/mermaid); baca references/playwright-css.md + _rules.md (iron law: zero overlap, bg low-saturation + border saturasi, dark header → light text, screenshot device_scale_factor=2 + auto-fit viewport).
+- Desain layout 1900x1448 CSS px landscape dengan positioning absolut + SVG overlay: baris atas User (kiri) — Store (tengah) — Order (kanan), baris bawah VerificationCode (kiri, garis putus-putus) — Product (tengah) — OrderItem (kanan); hasilnya NOL persilangan garis (relasi User—Order dirutekan lewat koridor atas). Notasi crow's foot digambar manual di SVG (tick = one, circle+tick = 0..1, prong = many) + chip kardinalitas 1/N/0..1.
+- Palet teal brand (#0f766e/#0d9488/#14b8a6, header gradient + teks putih, body putih, PK row tinted #f0fdfa), badge PK/FK/UNIQUE/IDX, note kecil per field (NIK 16 digit, JR-XXXXXX, TUNAI|QRIS, enum status, SHA-256, 62xxx), label relasi bahasa Indonesia dalam pill putih, legend (PK/FK/UNIQUE/crow's foot/putus-putus) + footer sumber skema.
+- Menulis docs/erd.html + docs/render_erd.py (Playwright chromium, scale=2, element screenshot #root dengan auto-fit viewport per template skill).
+- QA geometris (docs/qa_erd.py): sampling 1038 titik di semua path SVG + bounding box 20 elemen → menemukan 4-5 konektor menembus border box (efek tinggi box auto = konten + border 2px; hitungan awal keliru 6px di Order karena 3 baris note). Diperbaiki koordinat konektor (Store—Product mulai y=790, Order—OrderItem y=596 + chip geser, dashed mulai y=564) → re-render → PASS: zero overlap, no wire-through-box, nothing clipped.
+- QA visual via VLM (z-ai vision; Read tool tidak menampilkan gambar di sub-agent): full view downscaled + 4 crop full-res (kuadran) → semua PASS: 6 entitas terlihat, judul + subtitle utuh, tidak ada teks tumpang tindih/terpotong, crow's foot & chip legible, legend lengkap, tidak ada elemen terpotong. (Catatan "terpotong" pada crop hanyalah artefak pemotongan crop, bukan defect.)
+- Verifikasi akhir: `file docs/erd.png` → PNG 3800x2896 8-bit RGB, 723KB (>80KB), lebar 3800px (≥1600). Tidak ada source code aplikasi yang diubah.
+
+Stage Summary:
+- HASIL: /home/z/my-project/docs/erd.png — ERD Jajan Riyen, PNG 3800x2896 px (1900x1448 CSS px @ device_scale_factor=2), 723 KB, landscape.
+- Metode: Playwright + CSS (route wajib charts skill untuk structural diagram); HTML source di docs/erd.html, renderer docs/render_erd.py, QA geometris docs/qa_erd.py.
+- Keputusan: layout dua baris segitiga (User—Store—Order atas; VerificationCode—Product—OrderItem bawah) agar 7 relasi digambar tanpa satu pun persilangan garis; VerificationCode digambar terpisah dengan header abu-abu + border putus-putus sesuai status "tabel mandiri/relasi logis"; notasi crow's foot + chip kardinalitas ganda (simbol + angka) agar terbaca teknis maupun awam.
+
+---
+Task ID: 3-b
+Agent: general-purpose (use case diagram)
+Task: Buat diagram use case Jajan Riyen dalam PNG
+
+Work Log:
+- Read worklog.md untuk konteks fitur aplikasi (OTP WA/SMS, QRIS per penjual, barcode/scan, GPS+Leaflet, keranjang 1 UMKM, PWA, dll).
+- Invoked skill "charts" → routing structural diagram → Playwright+CSS (bukan mermaid/matplotlib); membaca references/playwright-css.md + _rules.md (zero overlap, low-sat bg + saturated border, screenshot device_scale_factor=2).
+- Desain layout hand-positioned 1960x1430 CSS px: boundary box "Aplikasi Jajan Riyen — Marketplace UMKM" + 3 swim-zone tinted (Aktivitas Pembeli / Layanan Bersama & Integrasi / Aktivitas Penjual UMKM); 20 use case pills (10 pembeli, 7 penjual, 3 shared: Menerima OTP, Menentukan lokasi toko, Menampilkan peta) dengan nomor badge 1-19; aktor stick-figure Pembeli (kiri) & Penjual UMKM (kanan); sistem eksternal «eksternal» Gateway WA/SMS (kiri-bawah) & Layanan Peta (kanan-bawah).
+- Konektor digambar via JS + SVG layer dari rect elemen asli: 20 asosiasi solid (fan aktor tersebar sepanjang sisi figur untuk hindari bundling; Gateway→UC18 lewat rute bawah UC1; Layanan→UC4 garis lurus y=corridor + branch T-junction→UC19), 8 dashed arrow «include»/«extend» dengan open chevron marker + label halo putih (include: 1→18, 9→11, 9→9a, 3→19, 6→7, 17→16; extend: 8→7, 15→14).
+- Panel LEGENDA (5 sampel garis/bentuk) + note UML "CATATAN" (aturan keranjang 1 UMKM, gating QRIS, OTP 5 menit) mengisi kolom tengah atas.
+- Bug saat render pertama: spread operator JS pada titik polyline membuat array flat → "p.join is not a function" → semua dashed arrow + label hilang; ditemukan via console error capture, diperbaiki (pass array-of-points), re-render.
+- QA geometri via Playwright DOM sampling (docs/qa_usecase.py): 20 pills vs 6 node/panel — 0 node overlap, 0 connector menembus interior pill/box, 0 label bertabrakan; tinggi pill konsisten 60px (max 2 baris).
+- QA visual via VLM (z-ai vision) pada full image + 3 crop (tengah/kiri/kanan): tidak ada garis menembus LEGENDA/CATATAN, fan aktor bersih, label «include»/«extend» terbaca, tidak ada teks overlap/terpotong; keluhan VLM pertama (fan menumpuk) diperbaiki dengan anchor tersebar + T-junction branch dikonfirmasi bersih.
+- Verifikasi file: PNG 3920x2860 (scale 2), 729 KB, 8-bit RGB non-interlaced.
+
+Stage Summary:
+- Deliverable: /home/z/my-project/docs/usecase.png (3920x2860 px @2x dari kanvas 1960x1430 CSS px, 729 KB) — diagram use case UML lengkap: 4 aktor (2 stick figure + 2 «eksternal»), 20 use case dalam boundary, 20 asosiasi solid, 8 relasi «include»/«extend» dashed berlabel, legenda + catatan, palet teal/emerald brand (#0d9488/#14b8a6/#0f766e, bg #F0FDFA/#ECFDF5) di atas putih.
+- Metode: Playwright+CSS sesuai skill charts (HTML/CSS absolut + SVG connector layer, device_scale_factor=2, tanpa matplotlib/mermaid).
+- Keputusan: uc9a "Menentukan lokasi toko" tanpa nomor badge (use case pendukung hasil include); UC4 tetap di kolom pembeli dengan garis asosiasi horizontal ke Layanan Peta lewat corridor kosong antara UC19 & UC18 (0 persilangan garis); Checkout→Melacak digambar «include» vertikal (opsi lebih bersih dari asosiasi).
+- Artefak: docs/usecase.png, docs/render_usecase.py (generator+renderer), docs/qa_usecase.py (QA geometri), /tmp/usecase.html (temp).
+
+---
+Task ID: 11 (main)
+Agent: Z.ai Code (main)
+Task: 2 permintaan baru — (1) ganti logo menjadi daun hijau 3D realistis, (2) buat ERD & Use Case diagram dalam file PNG
+
+Work Log:
+- Task 3-a & 3-b (subagent paralel): diagram dibuat via charts skill (Playwright+CSS, scale 2). docs/erd.png 3800x2896 (6 entitas, crow's foot, QA geometri + VLM) & docs/usecase.png 3920x2860 (2 aktor utama + 2 sistem eksternal, «include»/«extend», QA lolos). Worklog masing-masing dicatat subagent.
+- Logo: generate render 3D daun hijau realistis 1024x1024 via z-ai CLI (tetesan air + tangkai spiral) -> scripts/process-logo.mjs: hapus latar putih (flood-fill dari tepi + erosi lembut 2 pass + feather alpha), crop bbox, hasil public/logo-leaf.png 590x890 RGBA transparan (alpha sudut=0 terverifikasi).
+- Ikon PWA diregenerasi dari daun: icon-192/icon-512 (transparan), maskable-512 (gradien teal, daun 64% safe zone), apple-touch-icon 180, favicon-48.
+- brand.tsx v4: JrMark kini render <img src="/logo-leaf.png"> (props ink/tongue dipertahankan utk kompatibilitas, diabaikan); JrBadge/JrBadgeGradient/BrandWordmark otomatis ikut daun baru.
+- layout.tsx: ikon favicon diganti PNG (favicon-48 + icon-192), referensi /favicon.svg dihapus; public/favicon.svg & logo.svg dihapus (tidak lagi dipakai).
+- Akun: menu baru "Dokumentasi Proyek" (DocsDialog) -> tautan /docs/erd.png & /docs/usecase.png (tab baru); PNG juga disalin ke public/docs/ agar bisa diakses/unduh via preview.
+- FIX verifikasi: ikon lucide `Diagram` tidak ada di versi terpasang -> diganti FileImage/Network/Workflow (build error "Export Diagram doesn't exist" hilang).
+- Verifikasi agent-browser (400x850 + 1280x800): splash daun 3D langsung di gradien tanpa kotak putih; login OTP asli (dev mode tampil kode) -> verifikasi -> popup flash sale -> beranda; tab Akun: wordmark daun + menu Dokumentasi Proyek -> dialog -> tautan ERD terbuka tab baru (200); /docs/*.png & /logo-leaf.png serve 200; favicon.svg lama 404 (memang dihapus); console bersih, dev.log tanpa error; lint 0/0.
+
+Stage Summary:
+- Logo aplikasi kini DAUN HIJAU 3D REALISTIS (PNG transparan) di seluruh titik: splash, login, akun, favicon, dan semua ikon PWA.
+- ERD & Use Case selesai sebagai file PNG resolusi tinggi: docs/erd.png (3800x2896), docs/usecase.png (3920x2860), tersalin ke public/docs/ dan dapat dibuka dari menu Akun > Dokumentasi Proyek.
+- Artefak: public/brand/logo-leaf-raw.png, public/logo-leaf.png, scripts/process-logo.mjs, public/icons/* (regenerated), public/docs/erd.png, public/docs/usecase.png, brand.tsx v4, layout.tsx (icons), account-screen.tsx (DocsDialog).
