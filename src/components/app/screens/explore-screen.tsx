@@ -1,13 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { Search, MapPin, ChevronRight, Zap, LayoutGrid, Percent, TrendingUp, Navigation } from "lucide-react";
 import type { Store } from "@/lib/types";
 import { formatRupiah } from "@/lib/format";
 import { cn } from "@/lib/utils";
-import { usePrefsStore } from "@/lib/app-store";
-import { TopBar, AreaButton, BellIconButton, CartIconButton } from "../widgets";
+import { usePrefsStore, haversineKm } from "@/lib/app-store";
+import { TopBar, AreaButton, CartIconButton } from "../widgets";
 import { Stars, EmptyState, SkeletonList } from "../shared";
 
 const CIRCLES = [
@@ -45,18 +45,14 @@ const QUICK: { key: QuickFilter; label: string; sub: string; grad: string; icon:
 ];
 
 export default function ExploreScreen({
-  unreadCount,
   onOpenStore,
   onOpenFlashSale,
   onOpenLocation,
-  onOpenNotifications,
   onOpenCart,
 }: {
-  unreadCount: number;
   onOpenStore: (storeId: string) => void;
   onOpenFlashSale: () => void;
   onOpenLocation: () => void;
-  onOpenNotifications: () => void;
   onOpenCart: () => void;
 }) {
   const [stores, setStores] = useState<Store[] | null>(null);
@@ -64,6 +60,18 @@ export default function ExploreScreen({
   const [circle, setCircle] = useState("");
   const [quick, setQuick] = useState<QuickFilter>("");
   const area = usePrefsStore((s) => s.area);
+  const userCoords = usePrefsStore((s) => s.coords);
+
+  /** Jarak toko: real (GPS↔koordinat toko) bila tersedia, else nilai toko. */
+  const distanceOf = useCallback(
+    (s: Store) => {
+      if (userCoords && s.latitude != null && s.longitude != null) {
+        return haversineKm(userCoords, { lat: s.latitude, lng: s.longitude });
+      }
+      return s.distanceKm;
+    },
+    [userCoords]
+  );
 
   useEffect(() => {
     let alive = true;
@@ -92,7 +100,7 @@ export default function ExploreScreen({
         s.products.some((p) => p.name.toLowerCase().includes(q));
       return matchCircle && matchQ;
     });
-    if (quick === "near") list = [...list].sort((a, b) => a.distanceKm - b.distanceKm);
+    if (quick === "near") list = [...list].sort((a, b) => distanceOf(a) - distanceOf(b));
     if (quick === "hot")
       list = [...list].sort(
         (a, b) =>
@@ -107,7 +115,7 @@ export default function ExploreScreen({
       list = [...list].filter((s) => disc(s) > 0).sort((a, b) => disc(b) - disc(a));
     }
     return list;
-  }, [stores, query, circle, quick]);
+  }, [stores, query, circle, quick, distanceOf]);
 
   const pickCircle = (key: string) => {
     setCircle(key);
@@ -138,7 +146,6 @@ export default function ExploreScreen({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <AreaButton scrolled={scrolled} area={area} onClick={onOpenLocation} />
-              <BellIconButton scrolled={scrolled} unread={unreadCount} onClick={onOpenNotifications} />
               <CartIconButton scrolled={scrolled} onClick={onOpenCart} />
             </div>
           </>
@@ -328,7 +335,7 @@ export default function ExploreScreen({
                       </div>
                     )}
                     <span className="absolute left-2 top-2 flex items-center gap-1 rounded-full bg-black/55 px-2 py-0.5 text-[9px] font-bold text-white backdrop-blur">
-                      <MapPin className="h-2.5 w-2.5" /> {store.distanceKm.toFixed(1)} km
+                      <MapPin className="h-2.5 w-2.5" /> {distanceOf(store).toFixed(1)} km
                     </span>
                     {store.products.some((p) => p.isFlashSale) && (
                       <span className="absolute right-2 top-2 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-white">

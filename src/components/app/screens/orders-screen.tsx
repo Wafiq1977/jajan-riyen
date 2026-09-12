@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, ReceiptText, ScanLine, QrCode } from "lucide-react";
+import { RefreshCw, ReceiptText, QrCode } from "lucide-react";
 import type { Order, OrderStatus, User } from "@/lib/types";
 import { formatRupiah, formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -25,13 +25,11 @@ export default function OrdersScreen({
   user,
   tick,
   onOpenStore,
-  onOpenScan,
   onTrack,
 }: {
   user: User | null;
   tick: number;
   onOpenStore: (storeId: string) => void;
-  onOpenScan: () => void;
   onTrack: (order: Order) => void;
 }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -87,13 +85,6 @@ export default function OrdersScreen({
             <h1 className="text-2xl font-extrabold text-white">Pesanan</h1>
             <p className="mt-0.5 text-xs text-teal-50/85">Riwayat jajanmu, dipisah per UMKM</p>
           </div>
-          <button
-            onClick={onOpenScan}
-            className="press flex items-center gap-1.5 rounded-full bg-white/15 px-3.5 py-2 text-[11px] font-extrabold text-white backdrop-blur hover:bg-white/25"
-            aria-label="Scan barcode pesanan"
-          >
-            <ScanLine className="h-4 w-4" /> Scan
-          </button>
         </div>
       </div>
 

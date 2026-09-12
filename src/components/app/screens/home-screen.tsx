@@ -17,7 +17,7 @@ import { formatRupiah, maskPhone } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { usePrefsStore } from "@/lib/app-store";
 import { BrandWordmark } from "../brand";
-import { TopBar, CountdownChip, AreaButton, BellIconButton, CartIconButton } from "../widgets";
+import { TopBar, CountdownChip, AreaButton, CartIconButton } from "../widgets";
 import { ProductThumb, Stars, SectionTitle, EmptyState, DiscountBadge, SkeletonList } from "../shared";
 
 const CATEGORIES = [
@@ -29,19 +29,15 @@ const CATEGORIES = [
 
 export default function HomeScreen({
   user,
-  unreadCount,
   onOpenStore,
   onOpenFlashSale,
   onOpenLocation,
-  onOpenNotifications,
   onOpenCart,
 }: {
   user: User | null;
-  unreadCount: number;
   onOpenStore: (storeId: string) => void;
   onOpenFlashSale: () => void;
   onOpenLocation: () => void;
-  onOpenNotifications: () => void;
   onOpenCart: () => void;
 }) {
   const [stores, setStores] = useState<Store[] | null>(null);
@@ -107,7 +103,6 @@ export default function HomeScreen({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <AreaButton scrolled={scrolled} area={area} onClick={onOpenLocation} />
-              <BellIconButton scrolled={scrolled} unread={unreadCount} onClick={onOpenNotifications} />
               <CartIconButton scrolled={scrolled} onClick={onOpenCart} />
             </div>
           </>

@@ -2,7 +2,7 @@
 
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import type { CartItem, Order, Product, Store, User } from "./types";
+import type { CartItem, Product, Store, User } from "./types";
 
 interface AppState {
   user: User | null;
@@ -20,7 +20,8 @@ export const useAppStore = create<AppState>()(
 );
 
 /* ------------------------------------------------------------------ */
-/* PREFS — user-selected location area (shown in the top bar).          */
+/* LOKASI — GPS beneran (Geolocation API) + reverse geocoding,         */
+/* dengan fallback pilih area manual.                                  */
 /* ------------------------------------------------------------------ */
 
 export const AREAS = [
@@ -34,119 +35,42 @@ export const AREAS = [
   "Mijen",
 ];
 
+export interface UserCoords {
+  lat: number;
+  lng: number;
+}
+
 interface PrefsState {
   area: string;
-  setArea: (area: string) => void;
+  coords: UserCoords | null;
+  source: "manual" | "gps";
+  detectedAt: string | null;
+  setLocation: (opts: { area: string; coords: UserCoords | null; source: "manual" | "gps" }) => void;
 }
 
 export const usePrefsStore = create<PrefsState>()(
   persist(
     (set) => ({
       area: "Banaran",
-      setArea: (area) => set({ area }),
+      coords: null,
+      source: "manual",
+      detectedAt: null,
+      setLocation: ({ area, coords, source }) =>
+        set({ area, coords, source, detectedAt: new Date().toISOString() }),
     }),
     { name: "jajanriyen-prefs" }
   )
 );
 
-/* ------------------------------------------------------------------ */
-/* NOTIFICATIONS — lightweight feed derived from the user's orders.     */
-/* ------------------------------------------------------------------ */
-
-export interface NotifItem {
-  id: string;
-  title: string;
-  body: string;
-  emoji: string;
-  at: string;
-  kind: "order" | "promo";
-  orderStatus?: string;
-}
-
-interface NotifState {
-  orders: Order[];
-  lastRead: string;
-  setOrders: (orders: Order[]) => void;
-  markRead: () => void;
-}
-
-export const useNotifStore = create<NotifState>()((set) => ({
-  orders: [],
-  lastRead: new Date(0).toISOString(),
-  setOrders: (orders) => set({ orders }),
-  markRead: () => set({ lastRead: new Date().toISOString() }),
-}));
-
-/** Build a notification feed from the user's orders + always-on promos. */
-export function buildNotifications(orders: Order[]): NotifItem[] {
-  const promo: NotifItem[] = [
-    {
-      id: "promo-flash",
-      title: "Flash Sale hari ini ⚡",
-      body: "Diskon hingga 45% buat kuliner lokal. Berakhir tengah malam!",
-      emoji: "⚡",
-      at: new Date(new Date().setHours(6, 0, 0, 0)).toISOString(),
-      kind: "promo",
-    },
-    {
-      id: "promo-qris",
-      title: "Bayar pakai QRIS lebih praktis",
-      body: "Scan QRIS penjual langsung dari aplikasi — anti uang pas.",
-      emoji: "🔳",
-      at: new Date(new Date().setHours(5, 0, 0, 0)).toISOString(),
-      kind: "promo",
-    },
-  ];
-
-  const fromOrders: NotifItem[] = orders.map((o) => {
-    const storeName = o.store?.name ?? "Penjual";
-    switch (o.status) {
-      case "PENDING":
-        return {
-          id: `order-${o.id}`,
-          title: `Pesanan ${o.code} diterima`,
-          body: `${storeName} sedang memeriksa pesananmu (${o.quantity} item · Rp${o.totalPrice.toLocaleString("id-ID")}).`,
-          emoji: "🧾",
-          at: o.createdAt,
-          kind: "order",
-          orderStatus: o.status,
-        };
-      case "PROCESSING":
-        return {
-          id: `order-${o.id}`,
-          title: `Pesanan ${o.code} sedang diproses`,
-          body: `${storeName} sedang menyiapkan pesananmu. Siapkan barcode saat pengambilan.`,
-          emoji: "👨‍🍳",
-          at: o.updatedAt ?? o.createdAt,
-          kind: "order",
-          orderStatus: o.status,
-        };
-      case "COMPLETED":
-        return {
-          id: `order-${o.id}`,
-          title: `Pesanan ${o.code} selesai`,
-          body: `Terima kasih sudah jajan di ${storeName}! Jangan lupa beri rating ya.`,
-          emoji: "🎉",
-          at: o.updatedAt ?? o.createdAt,
-          kind: "order",
-          orderStatus: o.status,
-        };
-      default:
-        return {
-          id: `order-${o.id}`,
-          title: `Pesanan ${o.code} dibatalkan`,
-          body: `Pesananmu di ${storeName} dibatalkan.`,
-          emoji: "❌",
-          at: o.updatedAt ?? o.createdAt,
-          kind: "order",
-          orderStatus: o.status,
-        };
-    }
-  });
-
-  return [...fromOrders, ...promo].sort(
-    (a, b) => new Date(b.at).getTime() - new Date(a.at).getTime()
-  );
+/** Jarak haversine dua titik (km). */
+export function haversineKm(a: UserCoords, b: UserCoords): number {
+  const R = 6371;
+  const dLat = ((b.lat - a.lat) * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos((a.lat * Math.PI) / 180) * Math.cos((b.lat * Math.PI) / 180) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
 }
 
 /* ------------------------------------------------------------------ */

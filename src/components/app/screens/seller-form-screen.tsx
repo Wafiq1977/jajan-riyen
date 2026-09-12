@@ -12,6 +12,10 @@ import {
   CheckCircle2,
   ImagePlus,
   QrCode,
+  IdCard,
+  ShieldCheck,
+  MapPin,
+  UserRound,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -25,6 +29,7 @@ import {
 import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
 import { ImageUploader } from "../upload";
+import { LocationPicker, type LatLng } from "../map-picker";
 
 const CATEGORIES = [
   { value: "Makanan", emoji: "🍛" },
@@ -48,17 +53,35 @@ export default function SellerFormScreen({
   onBack: () => void;
   onDone: (user: User) => void;
 }) {
+  // Data pribadi (wajib — sesuai KTP)
+  const [ktpName, setKtpName] = useState("");
+  const [nik, setNik] = useState("");
+  const [ownerAddress, setOwnerAddress] = useState("");
+
+  // Data toko
   const [name, setName] = useState("");
   const [category, setCategory] = useState("Makanan");
   const [description, setDescription] = useState("");
   const [address, setAddress] = useState("");
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [bannerUrl, setBannerUrl] = useState<string | null>(null);
+
+  // Lokasi toko (wajib)
+  const [coords, setCoords] = useState<LatLng | null>(null);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const nikDigits = nik.replace(/\D/g, "");
+  const ktpNameValid = ktpName.trim().length >= 3;
+  const nikValid = /^\d{16}$/.test(nikDigits);
+  const ownerAddressValid = ownerAddress.trim().length >= 10;
+  const storeNameValid = name.trim().length > 0;
+  const coordsValid = coords !== null;
+  const formValid = ktpNameValid && nikValid && ownerAddressValid && storeNameValid && coordsValid;
+
   const submit = async () => {
-    if (!user || !name.trim() || loading) return;
+    if (!user || !formValid || loading) return;
     setLoading(true);
     setError(null);
     try {
@@ -73,6 +96,11 @@ export default function SellerFormScreen({
           address,
           logoUrl,
           bannerUrl,
+          ktpName,
+          nik: nikDigits,
+          ownerAddress,
+          latitude: coords!.lat,
+          longitude: coords!.lng,
         }),
       });
       const data = await res.json();
@@ -103,7 +131,7 @@ export default function SellerFormScreen({
           </button>
           <h1 className="mt-4 text-2xl font-extrabold text-white">Daftar Jadi Penjual 🚀</h1>
           <p className="mt-1 text-xs text-teal-50/90">
-            Gratis 100%. Dashboard toko langsung aktif otomatis setelah mendaftar.
+            Lengkapi data diri &amp; lokasi tokomu — dashboard langsung aktif setelah daftar.
           </p>
         </div>
       </div>
@@ -131,9 +159,90 @@ export default function SellerFormScreen({
         </div>
       </div>
 
-      {/* Form */}
       <div className="mt-4 px-5">
-        <h2 className="mb-2.5 text-sm font-extrabold">Data Toko</h2>
+        {/* ============ 1. DATA PRIBADI (WAJIB) ============ */}
+        <h2 className="mb-1 flex items-center gap-1.5 text-sm font-extrabold">
+          <IdCard className="h-4 w-4 text-primary" /> Data Pribadi (sesuai KTP)
+        </h2>
+        <p className="mb-2.5 text-[10px] leading-relaxed text-muted-foreground">
+          Wajib diisi untuk verifikasi identitas penjual UMKM. Data hanya digunakan admin untuk
+          keperluan legitimasi toko.
+        </p>
+        <div className="space-y-3.5 rounded-3xl border border-teal-50 bg-white p-4 card-soft">
+          <div>
+            <label className="mb-1.5 block text-xs font-bold text-foreground" htmlFor="ktp-name">
+              Nama Lengkap Sesuai KTP <span className="text-red-400">*</span>
+            </label>
+            <Input
+              id="ktp-name"
+              value={ktpName}
+              onChange={(e) => setKtpName(e.target.value.slice(0, 60))}
+              placeholder="cth: Ahmad Fauzi"
+              className="h-11 rounded-xl border-input bg-muted/30 text-sm font-semibold"
+              autoComplete="name"
+            />
+            {ktpName.length > 0 && !ktpNameValid && (
+              <p className="mt-1 text-[10px] font-medium text-red-500">Minimal 3 karakter.</p>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-bold text-foreground" htmlFor="nik">
+              NIK (16 digit) <span className="text-red-400">*</span>
+            </label>
+            <div className="relative">
+              <Input
+                id="nik"
+                value={nik}
+                onChange={(e) => setNik(e.target.value.replace(/\D/g, "").slice(0, 16))}
+                placeholder="3374xxxxxxxxxxxx"
+                inputMode="numeric"
+                autoComplete="off"
+                className="h-11 rounded-xl border-input bg-muted/30 pr-12 font-mono text-sm font-bold tracking-widest"
+                maxLength={16}
+              />
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[10px] font-bold tabular-nums text-slate-300">
+                {nikDigits.length}/16
+              </span>
+            </div>
+            {nik.length > 0 && !nikValid && (
+              <p className="mt-1 text-[10px] font-medium text-red-500">NIK harus tepat 16 digit angka.</p>
+            )}
+            {nikValid && (
+              <p className="mt-1 flex items-center gap-1 text-[10px] font-semibold text-emerald-600">
+                <ShieldCheck className="h-3 w-3" /> NIK valid
+              </p>
+            )}
+          </div>
+
+          <div>
+            <label className="mb-1.5 block text-xs font-bold text-foreground" htmlFor="owner-addr">
+              Alamat Lengkap Sesuai KTP <span className="text-red-400">*</span>
+            </label>
+            <Textarea
+              id="owner-addr"
+              value={ownerAddress}
+              onChange={(e) => setOwnerAddress(e.target.value.slice(0, 200))}
+              placeholder="Jalan, nomor rumah, RT/RW, kelurahan, kecamatan, kota…"
+              className="min-h-[70px] resize-none rounded-xl border-input bg-muted/30 text-sm"
+              maxLength={200}
+            />
+            {ownerAddress.length > 0 && !ownerAddressValid && (
+              <p className="mt-1 text-[10px] font-medium text-red-500">
+                Tulis alamat lengkap (minimal 10 karakter).
+              </p>
+            )}
+          </div>
+
+          <div className="flex items-start gap-2 rounded-2xl bg-teal-50/70 p-3 text-[10px] font-medium leading-relaxed text-teal-700">
+            <UserRound className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            Nomor HP akun ({user?.phone ? `+${user.phone}` : "-"}) otomatis dipakai sebagai nomor
+            kontak penjual.
+          </div>
+        </div>
+
+        {/* ============ 2. DATA TOKO ============ */}
+        <h2 className="mb-2.5 mt-6 text-sm font-extrabold">Data Toko</h2>
         <div className="space-y-3.5 rounded-3xl border border-teal-50 bg-white p-4 card-soft">
           <div>
             <label className="mb-1.5 block text-xs font-bold text-foreground" htmlFor="store-name">
@@ -184,7 +293,7 @@ export default function SellerFormScreen({
 
           <div>
             <label className="mb-1.5 block text-xs font-bold text-foreground" htmlFor="store-addr">
-              Alamat Toko
+              Alamat Toko (nama jalan/gedung)
             </label>
             <Input
               id="store-addr"
@@ -197,8 +306,19 @@ export default function SellerFormScreen({
           </div>
         </div>
 
-        {/* Branding toko — logo & banner */}
-        <h2 className="mb-2.5 mt-5 flex items-center gap-1.5 text-sm font-extrabold">
+        {/* ============ 3. LOKASI TOKO (WAJIB) ============ */}
+        <h2 className="mb-1 mt-6 flex items-center gap-1.5 text-sm font-extrabold">
+          <MapPin className="h-4 w-4 text-primary" /> Lokasi Toko <span className="text-red-400">*</span>
+        </h2>
+        <p className="mb-2.5 text-[10px] leading-relaxed text-muted-foreground">
+          Wajib — agar pembeli tahu di mana tokomu. Pilih lewat peta, GPS, atau share lokasi Google Maps.
+        </p>
+        <div className="rounded-3xl border border-teal-50 bg-white p-4 card-soft">
+          <LocationPicker value={coords} onChange={setCoords} />
+        </div>
+
+        {/* ============ 4. BRANDING ============ */}
+        <h2 className="mb-2.5 mt-6 flex items-center gap-1.5 text-sm font-extrabold">
           <ImagePlus className="h-4 w-4 text-primary" /> Logo &amp; Banner Toko
         </h2>
         <div className="rounded-3xl border border-teal-50 bg-white p-4 card-soft">
@@ -232,16 +352,23 @@ export default function SellerFormScreen({
 
         {error && <p className="mt-3 text-center text-xs font-semibold text-red-500">{error}</p>}
 
+        {!formValid && (
+          <p className="mt-4 text-center text-[10px] font-medium text-amber-600">
+            Lengkapi semua isian bertanda <span className="text-red-400">*</span> (data pribadi &amp; pin
+            lokasi) untuk mengaktifkan tombol daftar.
+          </p>
+        )}
+
         <Button
           onClick={submit}
-          disabled={!name.trim() || loading}
-          className="press mt-5 h-13 h-[52px] w-full rounded-2xl bg-primary text-base font-extrabold shadow-xl shadow-teal-500/30 hover:bg-teal-700 disabled:opacity-40"
+          disabled={!formValid || loading}
+          className="press mt-4 h-[52px] w-full rounded-2xl bg-primary text-base font-extrabold shadow-xl shadow-teal-500/30 hover:bg-teal-700 disabled:opacity-40"
         >
           {loading ? (
             <Loader2 className="h-5 w-5 animate-spin" />
           ) : (
             <span className="inline-flex items-center gap-2">
-              <Rocket className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+              <Rocket className="h-[18px] w-[18px]" />
               Aktifkan Toko Sekarang
             </span>
           )}

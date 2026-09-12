@@ -1,0 +1,46 @@
+{
+  "name": "Jajan Riyen — Jajan Lokal, Hemat Terus",
+  "short_name": "JajanRiyen",
+  "description": "Marketplace kuliner UMKM lokal: jajan makan & minum sekitar, bayar tunai atau QRIS.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d9488",
+  "theme_color": "#0d9488",
+  "lang": "id",
+  "categories": ["food", "shopping", "lifestyle"],
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Jelajahi Toko",
+      "url": "/?tab=explore",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Pesanan Saya",
+      "url": "/?tab=orders",
+      "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+    }
+  ]
+}

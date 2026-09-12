@@ -3,59 +3,69 @@
 import { cn } from "@/lib/utils";
 
 /**
- * JR monogram — Jajan Riyen logo v2.
- * J and R are fused into ONE connected stroke: the J's bottom hook flows up
- * into the R's stem, and a fresh leaf sprouts from the shared top line.
- * Pure paths (no font dependency) so it renders identically everywhere.
+ * Logo Jajan Riyen v3 — "Mulut Melet".
+ * Logo GARIS (monoline, stroke tanpa fill): mulut melet / celibur
+ * — bibir atas, bibir bawah, dan lidah yang menjulur lucu.
+ * Digambar murni dengan path SVG sehingga tampil identik di semua ukuran.
  */
 export function JrMark({
   className,
   ink = "#253835",
-  leaf = "#2fbf5f",
+  tongue,
 }: {
   className?: string;
+  /** Warna garis bibir & lidah. */
   ink?: string;
-  leaf?: string;
+  /** Warna lidah berbeda (opsional) — default mengikuti `ink`. */
+  tongue?: string;
 }) {
+  const t = tongue ?? ink;
   return (
     <svg
       viewBox="0 0 64 64"
       className={className}
       fill="none"
       role="img"
-      aria-label="Logo Jajan Riyen"
+      aria-label="Logo Jajan Riyen — mulut melet"
     >
-      {/* leaf sprouting from the J top */}
-      <path d="M15.5 14 C15.5 8 19.5 4.4 25 4 C25.5 9.6 21 13.7 15.5 14 Z" fill={leaf} />
+      {/* bibir atas (cupid's bow) */}
       <path
-        d="M17 12.4 C19 10.5 21 8.5 23.4 6.8"
-        stroke="#ffffff"
-        strokeWidth="1.5"
-        strokeLinecap="round"
-        opacity="0.55"
-      />
-      {/* J — hook flows up into the R stem (connected ligature) */}
-      <path
-        d="M15.5 14 V32 A9.5 9.5 0 0 0 34.5 32 V52"
+        d="M8 27 C14 14.5 26 12.5 32 19.5 C38 12.5 50 14.5 56 27"
         stroke={ink}
-        strokeWidth="6.4"
+        strokeWidth="4.6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      {/* R — stem shared with the J hook, bowl + leg branch off */}
+      {/* bibir bawah */}
       <path
-        d="M34.5 52 V14 H42 A9 9 0 0 1 42 32 H34.5"
+        d="M8 27 C15 41 24 44.5 32 44.5 C40 44.5 49 41 56 27"
         stroke={ink}
-        strokeWidth="6.4"
+        strokeWidth="4.6"
         strokeLinecap="round"
         strokeLinejoin="round"
       />
-      <path d="M42 32 L51.5 52" stroke={ink} strokeWidth="6.4" strokeLinecap="round" />
+      {/* garis tengah bibir */}
+      <path
+        d="M13.5 26 C22 29.5 42 29.5 50.5 26"
+        stroke={ink}
+        strokeWidth="3"
+        strokeLinecap="round"
+        opacity="0.75"
+      />
+      {/* lidah menjulur (melet) */}
+      <path
+        d="M25.5 44 C24.5 56.5 41 57 40 45.5"
+        stroke={t}
+        strokeWidth="4.2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M32.7 47.5 V53.5" stroke={t} strokeWidth="3" strokeLinecap="round" opacity="0.75" />
     </svg>
   );
 }
 
-/** Square app-icon badge: connected JR on the teal brand gradient. */
+/** Square app-icon badge: mulut melet di atas gradien teal brand. */
 export function JrBadge({ className, light = false }: { className?: string; light?: boolean }) {
   return (
     <span
@@ -65,12 +75,12 @@ export function JrBadge({ className, light = false }: { className?: string; ligh
         className
       )}
     >
-      <JrMark className="h-[88%] w-[88%]" ink="#ffffff" leaf="#6ee7a0" />
+      <JrMark className="h-[88%] w-[88%]" ink="#ffffff" tongue="#6ee7a0" />
     </span>
   );
 }
 
-/** JR mark on the teal brand gradient (headers). */
+/** JR mark pada gradien teal brand (header). */
 export function JrBadgeGradient({ className }: { className?: string }) {
   return (
     <span
@@ -79,14 +89,14 @@ export function JrBadgeGradient({ className }: { className?: string }) {
         className
       )}
     >
-      <JrMark className="h-[88%] w-[88%]" ink="#ffffff" leaf="#6ee7a0" />
+      <JrMark className="h-[88%] w-[88%]" ink="#ffffff" tongue="#6ee7a0" />
     </span>
   );
 }
 
 /**
- * "Jajan Riyen" wordmark next to the JR mark.
- * `light` = for use on teal gradient headers.
+ * Wordmark "Jajan Riyen" di samping logo mulut melet.
+ * `light` = dipakai di atas header gradien teal.
  */
 export function BrandWordmark({
   light = false,
@@ -107,7 +117,7 @@ export function BrandWordmark({
         <JrMark
           className={cn(box, light && "drop-shadow-sm")}
           ink={light ? "#ffffff" : "#253835"}
-          leaf={light ? "#6ee7a0" : "#2fbf5f"}
+          tongue={light ? "#6ee7a0" : "#0d9488"}
         />
       )}
       <span className={cn("font-extrabold leading-none tracking-tight", text, light ? "text-white" : "text-foreground")}>

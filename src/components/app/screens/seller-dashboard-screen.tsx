@@ -233,15 +233,9 @@ export default function SellerDashboardScreen({
         {tab === "orders" ? (
           !orders ? (
             <SkeletonList count={3} />
-          ) : orders.length === 0 ? (
-            <EmptyState
-              icon={ClipboardList}
-              title="Belum ada pesanan masuk"
-              description="Promosikan tokomu agar dibeli lebih banyak orang!"
-            />
           ) : (
             <div className="space-y-3">
-              {/* Scan barcode pembeli */}
+              {/* Scan barcode pembeli — selalu tampil di dashboard penjual */}
               <button
                 onClick={() => setScanOpen(true)}
                 className="press flex w-full items-center gap-3 rounded-2xl border-2 border-dashed border-teal-200 bg-teal-50/50 px-4 py-3 text-left hover:bg-teal-50"
@@ -258,7 +252,14 @@ export default function SellerDashboardScreen({
                 <ChevronRight className="h-4 w-4 text-slate-300" />
               </button>
 
-              {orders.map((order, idx) => (
+              {orders.length === 0 ? (
+                <EmptyState
+                  icon={ClipboardList}
+                  title="Belum ada pesanan masuk"
+                  description="Promosikan tokomu agar dibeli lebih banyak orang!"
+                />
+              ) : (
+                orders.map((order, idx) => (
                 <motion.div
                   key={order.id}
                   initial={{ opacity: 0, y: 12 }}
@@ -332,7 +333,8 @@ export default function SellerDashboardScreen({
                     </Button>
                   )}
                 </motion.div>
-              ))}
+                ))
+              )}
             </div>
           )
         ) : tab === "products" ? (

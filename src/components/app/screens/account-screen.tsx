@@ -16,7 +16,9 @@ import {
   CircleUserRound,
   LayoutDashboard,
   ShoppingCart,
-  ScanLine,
+  Smartphone,
+  Share2,
+  Download,
 } from "lucide-react";
 import {
   Dialog,
@@ -49,7 +51,6 @@ export default function AccountScreen({
   onSellerForm,
   onSellerDashboard,
   onOpenStore,
-  onOpenScan,
   onLoggedOut,
 }: {
   user: User | null;
@@ -58,7 +59,6 @@ export default function AccountScreen({
   onSellerForm: () => void;
   onSellerDashboard: () => void;
   onOpenStore: (storeId: string) => void;
-  onOpenScan: () => void;
   onLoggedOut: () => void;
 }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
@@ -193,11 +193,6 @@ export default function AccountScreen({
             label="Keranjang Belanja"
             onClick={() => onGoTab("cart")}
           />
-          <MenuItem
-            icon={<ScanLine className="h-[18px] w-[18px]" />}
-            label="Scan Barcode Pesanan"
-            onClick={onOpenScan}
-          />
           <MenuItem icon={<ReceiptText className="h-[18px] w-[18px]" />} label="Pesanan Saya" onClick={() => onGoTab("orders")} />
           {user.isSeller && user.store && (
             <MenuItem
@@ -214,6 +209,7 @@ export default function AccountScreen({
             />
           )}
           <HelpDialog />
+          <InstallAppDialog />
           <AboutDialog />
           <LogoutDialog onLogout={onLoggedOut} />
         </div>
@@ -307,6 +303,82 @@ function HelpDialog() {
               Bisa, selama pesanan masih berstatus <b>Menunggu Konfirmasi</b>. Buka tab Pesanan lalu tekan Batalkan.
             </p>
           </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function InstallAppDialog() {
+  const [installable, setInstallable] = useState(false);
+
+  useEffect(() => {
+    const check = () => setInstallable(Boolean((window as unknown as { __jrInstallPrompt?: Event }).__jrInstallPrompt));
+    check();
+    window.addEventListener("jr:installable", check);
+    return () => window.removeEventListener("jr:installable", check);
+  }, []);
+
+  const promptInstall = async () => {
+    const evt = (window as unknown as { __jrInstallPrompt?: (prompt: () => Promise<void>) => void }).__jrInstallPrompt;
+    if (evt && typeof (evt as unknown as { prompt?: () => Promise<void> }).prompt === "function") {
+      await (evt as unknown as { prompt: () => Promise<void> }).prompt();
+    }
+  };
+
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <button className="press flex w-full items-center gap-3.5 px-4 py-4 text-left hover:bg-teal-50/40">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-primary">
+            <Smartphone className="h-[18px] w-[18px]" />
+          </span>
+          <span className="flex-1">
+            <span className="block text-sm font-bold text-foreground">Install Aplikasi di HP</span>
+            <span className="block text-[10px] font-medium text-muted-foreground">
+              {installable ? "Tersedia — pasang seperti aplikasi asli" : "Tambahkan ke layar utama (PWA)"}
+            </span>
+          </span>
+          <ChevronRight className="h-4 w-4 text-slate-300" />
+        </button>
+      </DialogTrigger>
+      <DialogContent className="max-w-[400px] rounded-3xl">
+        <DialogHeader>
+          <DialogTitle className="text-left">Pasang Jajan Riyen 📲</DialogTitle>
+          <DialogDescription className="text-left">
+            Pasang aplikasi langsung dari browser — tanpa Play Store. Buka Jajan Riyen seperti aplikasi
+            asli dengan logo di layar utamamu.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          {installable && (
+            <button
+              onClick={promptInstall}
+              className="press flex h-11 w-full items-center justify-center gap-2 rounded-2xl bg-brand-gradient text-sm font-extrabold text-white shadow-lg shadow-teal-500/30"
+            >
+              <Download className="h-4 w-4" /> Pasang Sekarang
+            </button>
+          )}
+          <div className="rounded-2xl border border-teal-50 bg-teal-50/40 p-3.5">
+            <p className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-700">
+              <Share2 className="h-3.5 w-3.5" /> Android (Chrome)
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-teal-900/80">
+              Ketuk menu <b>⋮</b> di pojok kanan atas → <b>“Tambahkan ke layar utama”</b> → Install.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-teal-50 bg-teal-50/40 p-3.5">
+            <p className="flex items-center gap-1.5 text-[11px] font-extrabold text-teal-700">
+              <Share2 className="h-3.5 w-3.5" /> iPhone (Safari)
+            </p>
+            <p className="mt-1 text-[11px] leading-relaxed text-teal-900/80">
+              Ketuk tombol <b>Bagikan</b> (kotak dengan panah) → <b>“Tambahkan ke Layar Utama”</b>.
+            </p>
+          </div>
+          <p className="text-center text-[10px] leading-relaxed text-muted-foreground">
+            Ingin APK untuk dibagikan / masuk Play Store? Ikuti langkah PWABuilder di
+            <b> PANDUAN-DEPLOY.md</b>.
+          </p>
         </div>
       </DialogContent>
     </Dialog>

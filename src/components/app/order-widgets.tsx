@@ -15,6 +15,7 @@ import {
   CameraOff,
   Loader2,
   X,
+  Zap,
 } from "lucide-react";
 import {
   Dialog,
@@ -207,10 +208,14 @@ export function TrackSheet({ order, onClose }: { order: Order | null; onClose: (
 }
 
 /* ------------------------------------------------------------------ */
-/* ScanDialog — camera barcode/QR scan with manual fallback            */
+/* ScanDialog — pemindai barcode/QR kamera beneran untuk HP            */
+/*  • Android Chrome : BarcodeDetector API native (cepat) + torch      */
+/*  • Browser lain   : html5-qrcode (JS decoder)                       */
+/*  • Fallback       : input kode manual (desktop/kamera tak tersedia) */
 /* ------------------------------------------------------------------ */
 
 type ScanStep = "scan" | "found" | "notfound";
+type Engine = "checking" | "native" | "html5" | "unavailable";
 
 export function ScanDialog({
   open,
@@ -227,21 +232,45 @@ export function ScanDialog({
   const [step, setStep] = useState<ScanStep>("scan");
   const [order, setOrder] = useState<Order | null>(null);
   const [manualCode, setManualCode] = useState("");
-  const [cameraError, setCameraError] = useState(false);
+  const [engine, setEngine] = useState<Engine>("checking");
+  const [cameraError, setCameraError] = useState<string | null>(null);
   const [lookingUp, setLookingUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [torchOn, setTorchOn] = useState(false);
+  const [torchAvailable, setTorchAvailable] = useState(false);
+
   const scannerRef = useRef<Html5Qrcode | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const videoRef = useRef<HTMLVideoElement | null>(null);
+  const detectTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const busyRef = useRef(false);
 
+  const stopNative = useCallback(() => {
+    if (detectTimerRef.current) {
+      clearInterval(detectTimerRef.current);
+      detectTimerRef.current = null;
+    }
+    streamRef.current?.getTracks().forEach((t) => t.stop());
+    streamRef.current = null;
+    if (videoRef.current) videoRef.current.srcObject = null;
+    setTorchOn(false);
+  }, []);
+
   const stopScanner = useCallback(() => {
+    stopNative();
     const s = scannerRef.current;
     scannerRef.current = null;
     if (s) {
-      s.stop()
-        .then(() => s.clear())
-        .catch(() => {});
+      // html5-qrcode melempar error SINKRON bila scanner belum sempat start
+      try {
+        s.stop()
+          .then(() => s.clear())
+          .catch(() => {});
+      } catch {
+        /* scanner tidak pernah berjalan — aman diabaikan */
+      }
     }
-  }, []);
+  }, [stopNative]);
 
   const lookup = useCallback(async (raw: string) => {
     const m = raw.toUpperCase().match(/JR[-\s]?([A-Z0-9]{4,10})/);
@@ -263,42 +292,105 @@ export function ScanDialog({
     }
   }, []);
 
-  // Start camera when dialog opens in scan step
+  const handleDetect = useCallback(
+    (raw: string) => {
+      if (busyRef.current) return;
+      busyRef.current = true;
+      stopScanner();
+      lookup(raw).finally(() => {
+        busyRef.current = false;
+      });
+    },
+    [lookup, stopScanner]
+  );
+
+  // Start kamera saat dialog terbuka di step "scan"
   useEffect(() => {
     if (!open || step !== "scan") return;
     let cancelled = false;
 
-    const start = async () => {
+    const startNative = async (): Promise<boolean> => {
+      // BarcodeDetector API (Chrome Android) — decode di hardware/OS level
+      const w = window as unknown as { BarcodeDetector?: new (opts?: { formats?: string[] }) => { detect: (src: CanvasImageSource) => Promise<{ rawValue: string }[]> } };
+      if (!w.BarcodeDetector) return false;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            facingMode: { ideal: "environment" },
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+          },
+          audio: false,
+        });
+        if (cancelled) {
+          stream.getTracks().forEach((t) => t.stop());
+          return true;
+        }
+        streamRef.current = stream;
+        setEngine("native");
+
+        // torch tersedia?
+        const track = stream.getVideoTracks()[0];
+        const caps = track.getCapabilities?.() as { torch?: boolean } | undefined;
+        setTorchAvailable(Boolean(caps?.torch));
+
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
+          await videoRef.current.play().catch(() => {});
+        }
+
+        const detector = new w.BarcodeDetector({ formats: ["code_128", "qr_code", "ean_13"] });
+        detectTimerRef.current = setInterval(async () => {
+          if (busyRef.current || !videoRef.current || videoRef.current.readyState < 2) return;
+          try {
+            const found = await detector.detect(videoRef.current);
+            if (found.length > 0) handleDetect(found[0].rawValue);
+          } catch {
+            /* frame skip */
+          }
+        }, 350);
+        return true;
+      } catch {
+        streamRef.current?.getTracks().forEach((t) => t.stop());
+        streamRef.current = null;
+        return false;
+      }
+    };
+
+    const startHtml5 = async () => {
       try {
         const scanner = new Html5Qrcode("jr-scan-region", { verbose: false });
         scannerRef.current = scanner;
         await scanner.start(
           { facingMode: "environment" },
           { fps: 10, qrbox: { width: 210, height: 210 } },
-          (decoded) => {
-            if (busyRef.current) return;
-            busyRef.current = true;
-            stopScanner();
-            lookup(decoded).finally(() => {
-              busyRef.current = false;
-            });
-          },
+          (decoded) => handleDetect(decoded),
           () => {
             /* per-frame decode misses — ignore */
           }
         );
-        if (!cancelled) setCameraError(false);
+        if (!cancelled) setEngine("html5");
       } catch {
-        if (!cancelled) setCameraError(true);
+        scannerRef.current = null; // tidak pernah start — jangan stop nanti
+        if (!cancelled) {
+          setEngine("unavailable");
+          setCameraError("Kamera tidak bisa diakses — pastikan izin kamera diberikan & situs memakai HTTPS.");
+        }
       }
     };
 
-    start();
+    setEngine("checking");
+    setCameraError(null);
+    (async () => {
+      const nativeOk = await startNative();
+      if (!nativeOk && !cancelled) await startHtml5();
+    })();
+
     return () => {
       cancelled = true;
       stopScanner();
     };
-  }, [open, step, lookup, stopScanner]);
+  }, [open, step, handleDetect, stopScanner]);
 
   // Reset when closed
   useEffect(() => {
@@ -307,9 +399,23 @@ export function ScanDialog({
       setOrder(null);
       setManualCode("");
       setError(null);
-      setCameraError(false);
+      setCameraError(null);
+      setTorchAvailable(false);
+      setTorchOn(false);
     }
   }, [open]);
+
+  const toggleTorch = async () => {
+    const track = streamRef.current?.getVideoTracks()[0];
+    if (!track) return;
+    const next = !torchOn;
+    try {
+      await track.applyConstraints({ advanced: [{ torch: next }] } as unknown as MediaTrackConstraints);
+      setTorchOn(next);
+    } catch {
+      setTorchAvailable(false);
+    }
+  };
 
   const advance = (id: string, status: string) => {
     fetch(`/api/orders/${id}`, {
@@ -326,6 +432,7 @@ export function ScanDialog({
   };
 
   const isSellerMine = sellerStoreId && order?.storeId === sellerStoreId;
+  const unavailable = engine === "unavailable";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -336,9 +443,14 @@ export function ScanDialog({
               <ScanLine className="h-4 w-4" />
             </span>
             Scan Barcode Pesanan
+            {sellerStoreId && (
+              <span className="ml-1 rounded-full bg-slate-900 px-2 py-0.5 text-[8px] font-black tracking-wider text-emerald-300">
+                PENJUAL
+              </span>
+            )}
           </DialogTitle>
           <DialogDescription className="text-left">
-            Arahkan kamera ke barcode/QR pesanan untuk melacak atau mengonfirmasi.
+            Arahkan kamera HP ke barcode/QR pesanan pembeli untuk konfirmasi cepat.
           </DialogDescription>
         </DialogHeader>
 
@@ -346,26 +458,60 @@ export function ScanDialog({
           <div className="space-y-3">
             {/* Camera region */}
             <div className="relative overflow-hidden rounded-2xl bg-slate-900">
-              <div id="jr-scan-region" className="min-h-[220px] w-full [&>video]:w-full" />
-              {!cameraError && (
+              {/* native engine video */}
+              <video
+                ref={videoRef}
+                muted
+                playsInline
+                autoPlay
+                className={cn("h-[240px] w-full object-cover", engine !== "native" && "hidden")}
+              />
+              {/* html5-qrcode engine */}
+              <div id="jr-scan-region" className={cn("min-h-[220px] w-full [&>video]:w-full", engine === "native" && "hidden")} />
+
+              {(engine === "native" || engine === "html5") && (
                 <>
                   <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-                    <div className="h-44 w-44 rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(15,23,42,0.45)]" />
+                    <div className="h-40 w-[85%] rounded-2xl border-2 border-white/80 shadow-[0_0_0_9999px_rgba(15,23,42,0.45)]" />
                   </div>
                   <motion.div
-                    className="pointer-events-none absolute left-1/2 top-1/2 h-0.5 w-44 -translate-x-1/2 rounded bg-emerald-400"
-                    animate={{ y: [-80, 80, -80] }}
+                    className="pointer-events-none absolute left-1/2 top-1/2 h-0.5 w-[80%] -translate-x-1/2 rounded bg-emerald-400"
+                    animate={{ y: [-70, 70, -70] }}
                     transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
                   />
+                  <span className="pointer-events-none absolute bottom-2 left-1/2 -translate-x-1/2 rounded-full bg-black/45 px-2.5 py-1 text-[9px] font-bold text-white/90 backdrop-blur">
+                    {engine === "native" ? "🔍 Deteksi native aktif" : "🔍 Deteksi aktif"}
+                  </span>
                 </>
               )}
-              {cameraError && (
+
+              {/* Torch */}
+              {(engine === "native" || engine === "html5") && torchAvailable && (
+                <button
+                  onClick={toggleTorch}
+                  className={cn(
+                    "press absolute right-2 top-2 flex h-9 w-9 items-center justify-center rounded-full backdrop-blur",
+                    torchOn ? "bg-amber-400 text-slate-900" : "bg-black/40 text-white"
+                  )}
+                  aria-label={torchOn ? "Matikan lampu" : "Nyalakan lampu"}
+                >
+                  <Zap className="h-4 w-4" />
+                </button>
+              )}
+
+              {unavailable && (
                 <div className="flex min-h-[220px] flex-col items-center justify-center gap-2 p-6 text-center">
                   <CameraOff className="h-8 w-8 text-white/50" />
                   <p className="text-xs font-bold text-white/85">Kamera tidak tersedia</p>
                   <p className="text-[10px] leading-relaxed text-white/55">
-                    Kamera tidak bisa diakses di perangkat ini. Masukkan kode pesanan secara manual di bawah.
+                    {cameraError ?? "Akses kamera membutuhkan izin browser dan koneksi HTTPS."}
                   </p>
+                </div>
+              )}
+              {engine === "checking" && (
+                <div className="flex min-h-[220px] flex-col items-center justify-center gap-2">
+                  <Loader2 className="h-6 w-6 animate-spin text-white/70" />
+                  <p className="text-[10px] font-semibold text-white/60">Menyiapkan kamera…</p>
                 </div>
               )}
             </div>

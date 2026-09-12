@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ShieldCheck, Smartphone, Loader2 } from "lucide-react";
+import { ArrowLeft, ShieldCheck, Smartphone, Loader2, MessageCircle, KeyRound, TimerReset } from "lucide-react";
 import {
   InputOTP,
   InputOTPGroup,
@@ -13,15 +13,18 @@ import { Button } from "@/components/ui/button";
 import type { User } from "@/lib/types";
 import { BrandWordmark } from "../brand";
 
+type OtpVia = "whatsapp" | "sms" | null;
+
 export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void }) {
   const [step, setStep] = useState<"phone" | "otp">("phone");
   const [phone, setPhone] = useState("");
   const [otp, setOtp] = useState("");
-  const [generatedOtp, setGeneratedOtp] = useState("");
   const [loading, setLoading] = useState(false);
+  const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [countdown, setCountdown] = useState(0);
-  const otpSentRef = useRef(false);
+  const [via, setVia] = useState<OtpVia>(null);
+  const [devCode, setDevCode] = useState<string | null>(null); // hanya saat gateway WA/SMS belum diatur
 
   const digits = phone.replace(/\D/g, "");
   const phoneValid = digits.length >= 9 && digits.length <= 15;
@@ -32,55 +35,52 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
     return () => clearTimeout(t);
   }, [countdown]);
 
-  const sendOtp = () => {
+  const requestOtp = async () => {
     if (!phoneValid || loading) return;
     setLoading(true);
     setError(null);
-    // Simulate SMS delivery with a generated OTP
-    setTimeout(() => {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      setGeneratedOtp(code);
-      setOtp("");
-      setStep("otp");
-      setCountdown(60);
-      setLoading(false);
-      otpSentRef.current = true;
-    }, 700);
-  };
-
-  const verifyAndLogin = async (code: string) => {
-    if (code.length !== 6 || loading) return;
-    setLoading(true);
-    setError(null);
     try {
-      if (code !== generatedOtp) {
-        setError("Kode OTP salah, cek kembali ya!");
-        setOtp("");
-        setLoading(false);
-        return;
-      }
-      const res = await fetch("/api/auth/login", {
+      const res = await fetch("/api/auth/otp", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ phone: digits }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || "Gagal masuk");
-      onLogin(data.user as User);
+      if (!res.ok) throw new Error(data.error || "Gagal mengirim kode");
+      setVia(data.via ?? null);
+      setDevCode(data.devMode ? String(data.devCode) : null);
+      setOtp("");
+      setStep("otp");
+      setCountdown(60);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Gagal masuk");
+      setError(e instanceof Error ? e.message : "Gagal mengirim kode");
+    } finally {
       setLoading(false);
     }
   };
 
-  const resendOtp = () => {
-    if (countdown > 0) return;
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setGeneratedOtp(code);
-    setOtp("");
-    setCountdown(60);
+  const verifyAndLogin = async (code: string) => {
+    if (code.length !== 6 || verifying || loading) return;
+    setVerifying(true);
     setError(null);
+    try {
+      const res = await fetch("/api/auth/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phone: digits, code }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || "Kode salah");
+      onLogin(data.user as User);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Gagal verifikasi");
+      setOtp("");
+    } finally {
+      setVerifying(false);
+    }
   };
+
+  const channelLabel = via === "sms" ? "SMS" : "WhatsApp";
 
   return (
     <div className="min-h-full min-h-screen w-full bg-white">
@@ -108,10 +108,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
       </div>
 
       <div className="relative z-10 px-6 -mt-8 pb-10">
-        <motion.div
-          layout
-          className="rounded-3xl bg-white p-6 card-soft border border-teal-50"
-        >
+        <motion.div layout className="rounded-3xl bg-white p-6 card-soft border border-teal-50">
           <AnimatePresence mode="wait">
             {step === "phone" ? (
               <motion.div
@@ -135,7 +132,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
                     placeholder="81234567890"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 14))}
-                    onKeyDown={(e) => e.key === "Enter" && sendOtp()}
+                    onKeyDown={(e) => e.key === "Enter" && requestOtp()}
                     className="w-full min-w-0 flex-1 bg-transparent text-base font-semibold tracking-wide outline-none placeholder:text-slate-300"
                     aria-label="Nomor telepon"
                   />
@@ -143,12 +140,25 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
                 {error && <p className="mt-2 text-xs font-medium text-red-500">{error}</p>}
 
                 <Button
-                  onClick={sendOtp}
+                  onClick={requestOtp}
                   disabled={!phoneValid || loading}
                   className="press mt-5 h-12 w-full rounded-2xl bg-primary text-base font-bold shadow-lg shadow-teal-500/30 hover:bg-teal-700 disabled:opacity-40"
                 >
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Kirim Kode OTP"}
+                  {loading ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <span className="inline-flex items-center gap-2">
+                      <MessageCircle className="h-4.5 w-4.5 h-[18px] w-[18px]" />
+                      Kirim Kode via WhatsApp
+                    </span>
+                  )}
                 </Button>
+
+                <p className="mt-3 flex items-start gap-1.5 text-[11px] leading-relaxed text-muted-foreground">
+                  <ShieldCheck className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
+                  Kode verifikasi dikirim ke nomormu via WhatsApp (atau SMS). Kami tidak akan pernah
+                  menanyakan kode ini lewat telepon.
+                </p>
 
                 <p className="mt-4 text-center text-[11px] leading-relaxed text-muted-foreground">
                   Dengan masuk, kamu setuju dengan Syarat &amp; Ketentuan serta Kebijakan Privasi
@@ -164,29 +174,35 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
                 transition={{ duration: 0.25 }}
               >
                 <button
-                  onClick={() => { setStep("phone"); setError(null); }}
+                  onClick={() => {
+                    setStep("phone");
+                    setError(null);
+                    setDevCode(null);
+                  }}
                   className="press mb-3 flex items-center gap-1 text-sm font-semibold text-primary"
                 >
                   <ArrowLeft className="h-4 w-4" /> Ubah nomor
                 </button>
-                <div className="text-sm font-semibold text-foreground">
-                  Masukkan Kode OTP
+                <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <KeyRound className="h-4 w-4 text-primary" />
+                  Masukkan Kode Verifikasi
                 </div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Kode dikirim via SMS ke <span className="font-bold text-foreground">+62{digits}</span>
+                  6 digit kode dikirim via <span className="font-bold text-foreground">{channelLabel}</span> ke{" "}
+                  <span className="font-bold text-foreground">+62{digits}</span>
                 </p>
 
-                {/* Demo SMS bubble */}
-                <div className="mt-3 flex items-start gap-2.5 rounded-2xl bg-teal-50 p-3">
-                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-white">
-                    <ShieldCheck className="h-4 w-4" />
-                  </span>
-                  <div className="text-[11px] leading-relaxed text-teal-900">
-                    <span className="font-bold">Jajan Riyen:</span> Kode verifikasi kamu{" "}
-                    <span className="font-mono text-sm font-extrabold tracking-widest text-primary">{generatedOtp}</span>
-                    . Jangan bagikan ke siapa pun. (Simulasi SMS untuk demo)
+                {devCode && (
+                  <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-[11px] leading-relaxed text-amber-700">
+                    <span className="font-extrabold">⚙️ Mode pengembangan</span> — gateway WA/SMS
+                    belum dikonfigurasi di server. Kode kamu:{" "}
+                    <span className="font-mono text-sm font-extrabold tracking-widest">{devCode}</span>
+                    <span className="mt-1 block text-[10px] text-amber-600">
+                      Untuk pengiriman beneran, isi FONNTE_TOKEN / WABLAS_TOKEN / Twilio di file .env
+                      (lihat PANDUAN-DEPLOY.md).
+                    </span>
                   </div>
-                </div>
+                )}
 
                 <div className="mt-4 flex justify-center">
                   <InputOTP
@@ -196,7 +212,7 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
                       setOtp(v);
                       if (v.length === 6) verifyAndLogin(v);
                     }}
-                    disabled={loading}
+                    disabled={verifying}
                   >
                     <InputOTPGroup>
                       <InputOTPSlot index={0} />
@@ -215,19 +231,25 @@ export default function LoginScreen({ onLogin }: { onLogin: (user: User) => void
 
                 <Button
                   onClick={() => verifyAndLogin(otp)}
-                  disabled={otp.length !== 6 || loading}
+                  disabled={otp.length !== 6 || verifying}
                   className="press mt-5 h-12 w-full rounded-2xl bg-primary text-base font-bold shadow-lg shadow-teal-500/30 hover:bg-teal-700 disabled:opacity-40"
                 >
-                  {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verifikasi & Masuk"}
+                  {verifying ? <Loader2 className="h-5 w-5 animate-spin" /> : "Verifikasi & Masuk"}
                 </Button>
 
                 <p className="mt-4 text-center text-xs text-muted-foreground">
                   Belum menerima kode?{" "}
                   {countdown > 0 ? (
-                    <span className="font-semibold text-slate-400">kirim ulang dalam {countdown}s</span>
+                    <span className="inline-flex items-center gap-1 font-semibold text-slate-400">
+                      <TimerReset className="h-3 w-3" /> kirim ulang dalam {countdown}s
+                    </span>
                   ) : (
-                    <button onClick={resendOtp} className="font-bold text-primary hover:underline">
-                      Kirim ulang
+                    <button
+                      onClick={requestOtp}
+                      disabled={loading}
+                      className="font-bold text-primary hover:underline"
+                    >
+                      Kirim ulang kode
                     </button>
                   )}
                 </p>

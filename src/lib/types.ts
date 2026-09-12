@@ -23,6 +23,8 @@ export interface Store {
   category: string;
   description: string | null;
   address: string | null;
+  latitude: number | null;
+  longitude: number | null;
   logoUrl: string | null;
   bannerUrl: string | null;
   qrisEnabled: boolean;
@@ -40,6 +42,8 @@ export interface User {
   id: string;
   phone: string;
   name: string | null;
+  nik: string | null;
+  address: string | null;
   isSeller: boolean;
   store?: Store | null;
 }

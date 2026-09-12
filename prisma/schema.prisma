@@ -11,6 +11,8 @@ model User {
   id        String   @id @default(cuid())
   phone     String   @unique
   name      String?
+  nik       String? // NIK 16 digit (data pribadi penjual)
+  address   String? // alamat sesuai KTP (data pribadi penjual)
   isSeller  Boolean  @default(false)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -26,6 +28,8 @@ model Store {
   category     String   @default("Makanan")
   description  String?
   address      String?
+  latitude     Float? // koordinat lokasi toko (peta / share Gmaps)
+  longitude    Float?
   logoUrl      String?
   bannerUrl    String?
   qrisEnabled  Boolean  @default(false)
@@ -86,4 +90,16 @@ model OrderItem {
   quantity  Int
   emoji     String  @default("🍽️")
   imageUrl  String?
+}
+
+model VerificationCode {
+  id        String   @id @default(cuid())
+  phone     String // nomor tujuan (format 62xxx)
+  codeHash  String // SHA-256(code + salt)
+  expiresAt DateTime
+  attempts  Int      @default(0)
+  consumed  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([phone, createdAt])
 }

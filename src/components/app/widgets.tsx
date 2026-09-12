@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ShoppingBag,
@@ -10,9 +10,11 @@ import {
   ChevronRight,
   Timer,
   MapPin,
-  Bell,
   CheckCheck,
   Navigation,
+  LocateFixed,
+  Loader2,
+  AlertTriangle,
 } from "lucide-react";
 import QRCodeLib from "qrcode";
 import {
@@ -23,16 +25,8 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import { cn } from "@/lib/utils";
-import { formatRupiah, formatDateTime } from "@/lib/format";
-import {
-  AREAS,
-  buildNotifications,
-  cartTotalPrice,
-  cartTotalQty,
-  useCartStore,
-  useNotifStore,
-  usePrefsStore,
-} from "@/lib/app-store";
+import { formatRupiah } from "@/lib/format";
+import { AREAS, cartTotalPrice, cartTotalQty, useCartStore, usePrefsStore } from "@/lib/app-store";
 
 /* ---------------- scroll hook ---------------- */
 
@@ -112,40 +106,7 @@ export function CartIconButton({
   );
 }
 
-/** Notifikasi — klik-able, buka sheet notifikasi. */
-export function BellIconButton({
-  scrolled,
-  onClick,
-  unread,
-}: {
-  scrolled: boolean;
-  onClick: () => void;
-  unread: number;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={cn(
-        "press relative flex h-9 w-9 items-center justify-center rounded-full backdrop-blur transition-colors",
-        scrolled ? "bg-teal-50 text-primary" : "bg-white/15 text-white"
-      )}
-      aria-label={unread > 0 ? `Notifikasi, ${unread} belum dibaca` : "Notifikasi"}
-    >
-      <Bell className="h-4 w-4" />
-      {unread > 0 && (
-        <motion.span
-          key={unread}
-          initial={{ scale: 0.4 }}
-          animate={{ scale: [1, 1.25, 1] }}
-          className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-amber-400"
-          style={scrolled ? { boxShadow: "0 0 0 2px white" } : { boxShadow: "0 0 0 2px rgba(13,148,136,0.9)" }}
-        />
-      )}
-    </button>
-  );
-}
-
-/** Lokasi — klik-able, buka pemilih area. */
+/** Lokasi — klik-able, buka pemilih lokasi (GPS + area manual). */
 export function AreaButton({
   scrolled,
   area,
@@ -171,10 +132,79 @@ export function AreaButton({
   );
 }
 
-/* ---------------- location picker sheet ---------------- */
+/* ---------------- reverse geocoding helper ---------------- */
+
+interface GeoHit {
+  display_name?: string;
+  address?: Record<string, string>;
+}
+
+/** Ambil nama tempat dari koordinat (OpenStreetMap Nominatim, gratis tanpa API key). */
+export async function reverseGeocode(lat: number, lng: number): Promise<{ label: string; full: string } | null> {
+  try {
+    const res = await fetch(
+      `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lng}&zoom=16&accept-language=id`,
+      { headers: { Accept: "application/json" } }
+    );
+    if (!res.ok) return null;
+    const data = (await res.json()) as GeoHit;
+    const a = data.address ?? {};
+    const label =
+      a.neighbourhood || a.village || a.suburb || a.city_district || a.town || a.city || "Lokasiku";
+    return { label, full: data.display_name ?? label };
+  } catch {
+    return null;
+  }
+}
+
+export type GeoStatus = "idle" | "locating" | "denied" | "error" | "ok";
+
+/** Minta posisi GPS beneran dari perangkat. */
+export function getCurrentPosition(): Promise<{ lat: number; lng: number }> {
+  return new Promise((resolve, reject) => {
+    if (!("geolocation" in navigator)) {
+      reject(new Error("Perangkat tidak mendukung GPS"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (err) => {
+        if (err.code === err.PERMISSION_DENIED) reject(new Error("Izin lokasi ditolak"));
+        else if (err.code === err.TIMEOUT) reject(new Error("Waktu pengambilan lokasi habis"));
+        else reject(new Error("Lokasi tidak tersedia"));
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }
+    );
+  });
+}
+
+/* ---------------- location sheet (GPS real + area manual) ---------------- */
 
 export function LocationSheet({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const { area, setArea } = usePrefsStore();
+  const { area, coords, source, setLocation } = usePrefsStore();
+  const [status, setStatus] = useState<GeoStatus>("idle");
+  const [statusMsg, setStatusMsg] = useState<string | null>(null);
+  const [fullAddr, setFullAddr] = useState<string | null>(null);
+
+  const detect = useCallback(async () => {
+    setStatus("locating");
+    setStatusMsg(null);
+    try {
+      const pos = await getCurrentPosition();
+      setStatus("ok");
+      const geo = await reverseGeocode(pos.lat, pos.lng);
+      setLocation({
+        area: geo?.label ?? "Lokasiku",
+        coords: pos,
+        source: "gps",
+      });
+      setFullAddr(geo?.full ?? `${pos.lat.toFixed(5)}, ${pos.lng.toFixed(5)}`);
+      onOpenChange(false); // sukses → tutup sheet
+    } catch (e) {
+      setStatusMsg(e instanceof Error ? e.message : "Gagal mengambil lokasi");
+      setStatus(e instanceof Error && e.message.includes("ditolak") ? "denied" : "error");
+    }
+  }, [setLocation, onOpenChange]);
 
   return (
     <Drawer open={open} onOpenChange={onOpenChange}>
@@ -183,21 +213,70 @@ export function LocationSheet({ open, onOpenChange }: { open: boolean; onOpenCha
           <DrawerHeader className="px-0 pb-2 pt-1 text-left">
             <DrawerTitle className="flex items-center gap-2 text-base">
               <Navigation className="h-[18px] w-[18px] text-primary" />
-              Pilih Lokasi Jajanmu
+              Lokasi Jajanmu
             </DrawerTitle>
             <DrawerDescription className="text-left text-[11px]">
-              Toko &amp; rekomendasi disesuaikan dengan area yang kamu pilih.
+              Deteksi otomatis lewat GPS, atau pilih area manual.
             </DrawerDescription>
           </DrawerHeader>
 
+          {/* Deteksi GPS nyata */}
+          <button
+            onClick={detect}
+            disabled={status === "locating"}
+            className="press flex w-full items-center gap-3 rounded-2xl bg-brand-gradient px-4 py-3.5 text-left shadow-lg shadow-teal-500/25 disabled:opacity-70"
+          >
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/20 text-white backdrop-blur">
+              {status === "locating" ? (
+                <Loader2 className="h-5 w-5 animate-spin" />
+              ) : (
+                <LocateFixed className="h-5 w-5" />
+              )}
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm font-extrabold text-white">
+                {status === "locating" ? "Mencari posisimu…" : "Gunakan Lokasi Saya (GPS)"}
+              </span>
+              <span className="block text-[10px] font-medium text-teal-50/90">
+                {source === "gps" && coords
+                  ? `Aktif: ${area} · ${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)}`
+                  : "Izinkan akses lokasi di browser saat diminta"}
+              </span>
+            </span>
+            {source === "gps" && coords && status !== "locating" && (
+              <CheckCheck className="h-5 w-5 shrink-0 text-emerald-200" />
+            )}
+          </button>
+
+          {(status === "denied" || status === "error") && statusMsg && (
+            <p className="mt-2 flex items-start gap-1.5 rounded-2xl bg-amber-50 p-3 text-[11px] font-medium leading-relaxed text-amber-700">
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+              {statusMsg}. Gunakan HTTPS agar kamera &amp; GPS bisa diakses, atau pilih area manual di bawah.
+            </p>
+          )}
+
+          {fullAddr && (
+            <p className="mt-2 line-clamp-2 rounded-2xl bg-emerald-50 p-3 text-[10px] font-medium leading-relaxed text-emerald-700">
+              📍 {fullAddr}
+            </p>
+          )}
+
+          <div className="my-4 flex items-center gap-2">
+            <span className="h-px flex-1 bg-border" />
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-300">atau pilih manual</span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+
           <div className="grid grid-cols-2 gap-2">
             {AREAS.map((a) => {
-              const active = a === area;
+              const active = source === "manual" && a === area;
               return (
                 <button
                   key={a}
                   onClick={() => {
-                    setArea(a);
+                    setLocation({ area: a, coords: null, source: "manual" });
+                    setFullAddr(null);
+                    setStatus("idle");
                     onOpenChange(false);
                   }}
                   className={cn(
@@ -218,106 +297,11 @@ export function LocationSheet({ open, onOpenChange }: { open: boolean; onOpenCha
             })}
           </div>
 
-          <p className="mt-4 flex items-start gap-2 rounded-2xl bg-emerald-50/70 p-3 text-[10px] font-medium leading-relaxed text-emerald-700">
+          <p className="mt-4 flex items-start gap-2 rounded-2xl bg-teal-50/70 p-3 text-[10px] font-medium leading-relaxed text-teal-700">
             <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" />
-            Lokasi disimulasikan untuk demo — pilih area terdekat agar rekomendasi lebih relevan.
+            Lokasi GPS dipakai untuk menghitung jarak toko terdekat secara nyata. Data lokasi hanya
+            tersimpan di perangkatmu.
           </p>
-        </div>
-      </DrawerContent>
-    </Drawer>
-  );
-}
-
-/* ---------------- notifications sheet ---------------- */
-
-export function NotificationSheet({
-  open,
-  onOpenChange,
-  onOpenOrders,
-  onOpenFlashSale,
-}: {
-  open: boolean;
-  onOpenChange: (o: boolean) => void;
-  onOpenOrders: () => void;
-  onOpenFlashSale: () => void;
-}) {
-  const orders = useNotifStore((s) => s.orders);
-  const markRead = useNotifStore((s) => s.markRead);
-  const notifs = buildNotifications(orders);
-
-  useEffect(() => {
-    if (open) markRead();
-  }, [open, markRead]);
-
-  return (
-    <Drawer open={open} onOpenChange={onOpenChange}>
-      <DrawerContent className="mx-auto max-w-[430px] rounded-t-[28px]">
-        <div className="px-5 pb-8">
-          <DrawerHeader className="px-0 pb-2 pt-1 text-left">
-            <DrawerTitle className="flex items-center gap-2 text-base">
-              <Bell className="h-[18px] w-[18px] text-primary" />
-              Notifikasi
-            </DrawerTitle>
-            <DrawerDescription className="text-left text-[11px]">
-              Update pesanan &amp; promo terbaru buat kamu.
-            </DrawerDescription>
-          </DrawerHeader>
-
-          {notifs.length === 0 ? (
-            <p className="py-10 text-center text-xs text-muted-foreground">Belum ada notifikasi.</p>
-          ) : (
-            <div className="pretty-scroll max-h-[56vh] space-y-2 overflow-y-auto pr-1">
-              {notifs.slice(0, 12).map((n) => (
-                <button
-                  key={n.id}
-                  onClick={() => {
-                    onOpenChange(false);
-                    if (n.kind === "order") onOpenOrders();
-                    else onOpenFlashSale();
-                  }}
-                  className="press flex w-full items-start gap-3 rounded-2xl border border-teal-50 bg-white p-3 text-left card-soft hover:border-teal-100"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-teal-50 text-base">
-                    {n.emoji}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="flex items-center gap-1.5">
-                      <span className="truncate text-xs font-extrabold text-foreground">{n.title}</span>
-                      {n.kind === "order" && n.orderStatus && (
-                        <span
-                          className={cn(
-                            "shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black",
-                            n.orderStatus === "COMPLETED"
-                              ? "bg-emerald-50 text-emerald-600"
-                              : n.orderStatus === "PROCESSING"
-                                ? "bg-teal-50 text-teal-600"
-                                : n.orderStatus === "CANCELLED"
-                                  ? "bg-red-50 text-red-400"
-                                  : "bg-amber-50 text-amber-600"
-                          )}
-                        >
-                          {n.orderStatus === "PENDING"
-                            ? "BARU"
-                            : n.orderStatus === "PROCESSING"
-                              ? "DIPROSES"
-                              : n.orderStatus === "COMPLETED"
-                                ? "SELESAI"
-                                : "BATAL"}
-                        </span>
-                      )}
-                    </span>
-                    <span className="mt-0.5 line-clamp-2 block text-[11px] leading-snug text-muted-foreground">
-                      {n.body}
-                    </span>
-                    <span className="mt-1 block text-[9px] font-semibold text-slate-300">
-                      {formatDateTime(n.at)}
-                    </span>
-                  </span>
-                  <ChevronRight className="mt-3 h-3.5 w-3.5 shrink-0 text-slate-300" />
-                </button>
-              ))}
-            </div>
-          )}
         </div>
       </DrawerContent>
     </Drawer>

@@ -3,14 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { Home, ReceiptText, UserRound, Compass } from "lucide-react";
-import {
-  useAppStore,
-  useCartStore,
-  useNotifStore,
-  buildNotifications,
-  cartTotalQty,
-} from "@/lib/app-store";
-import type { Order, User } from "@/lib/types";
+import { useAppStore, useCartStore, cartTotalQty } from "@/lib/app-store";
+import type { User } from "@/lib/types";
 import { cn } from "@/lib/utils";
 import SplashScreen from "./screens/splash-screen";
 import LoginScreen from "./screens/login-screen";
@@ -26,8 +20,8 @@ import SuccessScreen from "./screens/success-screen";
 import FlashSaleScreen from "./screens/flash-sale-screen";
 import SellerFormScreen from "./screens/seller-form-screen";
 import SellerDashboardScreen from "./screens/seller-dashboard-screen";
-import { LocationSheet, NotificationSheet, FlashSalePopup } from "./widgets";
-import { ScanDialog, TrackSheet } from "./order-widgets";
+import { LocationSheet, FlashSalePopup } from "./widgets";
+import { TrackSheet } from "./order-widgets";
 
 export type Screen =
   | { name: "home" }
@@ -64,22 +58,7 @@ export default function JrApp() {
 
   // Sheets & dialogs
   const [locationOpen, setLocationOpen] = useState(false);
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [scanOpen, setScanOpen] = useState(false);
-  const [trackOrder, setTrackOrder] = useState<Order | null>(null);
-
-  // Cart badge (top-right icon)
-  const cartItems = useCartStore((s) => s.items);
-  const cartQty = cartTotalQty(cartItems);
-
-  // Notifications (derived from orders)
-  const setNotifOrders = useNotifStore((s) => s.setOrders);
-  const notifOrders = useNotifStore((s) => s.orders);
-  const lastRead = useNotifStore((s) => s.lastRead);
-  const unreadCount = useMemo(
-    () => buildNotifications(notifOrders).filter((n) => new Date(n.at) > new Date(lastRead)).length,
-    [notifOrders, lastRead]
-  );
+  const [trackOrder, setTrackOrder] = useState<import("@/lib/types").Order | null>(null);
 
   useEffect(() => {
     const t1 = setTimeout(() => setHydrated(true), 0);
@@ -100,24 +79,6 @@ export default function JrApp() {
       })
       .catch(() => {});
   }, [hydrated, setUser, user?.id]);
-
-  // Refresh orders → notification feed
-  useEffect(() => {
-    if (!hydrated || !user) {
-      setNotifOrders([]);
-      return;
-    }
-    let alive = true;
-    fetch(`/api/orders?userId=${user.id}`)
-      .then((r) => (r.ok ? r.json() : null))
-      .then((data) => {
-        if (alive) setNotifOrders((data?.orders as Order[]) ?? []);
-      })
-      .catch(() => {});
-    return () => {
-      alive = false;
-    };
-  }, [hydrated, user?.id, orderTick, setNotifOrders, user]);
 
   // Trigger popup once per session when user is on beranda after login
   useEffect(() => {
@@ -189,22 +150,18 @@ export default function JrApp() {
         return (
           <HomeScreen
             user={user}
-            unreadCount={unreadCount}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
             onOpenFlashSale={() => push({ name: "flash-sale" })}
             onOpenLocation={() => setLocationOpen(true)}
-            onOpenNotifications={() => setNotifOpen(true)}
             onOpenCart={openCart}
           />
         );
       case "explore":
         return (
           <ExploreScreen
-            unreadCount={unreadCount}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
             onOpenFlashSale={() => push({ name: "flash-sale" })}
             onOpenLocation={() => setLocationOpen(true)}
-            onOpenNotifications={() => setNotifOpen(true)}
             onOpenCart={openCart}
           />
         );
@@ -229,7 +186,6 @@ export default function JrApp() {
             user={user}
             tick={orderTick}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
-            onOpenScan={() => setScanOpen(true)}
             onTrack={(order) => setTrackOrder(order)}
           />
         );
@@ -242,7 +198,6 @@ export default function JrApp() {
             onSellerForm={() => push({ name: "seller-form" })}
             onSellerDashboard={() => push({ name: "seller" })}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
-            onOpenScan={() => setScanOpen(true)}
             onLoggedOut={() => {
               setUser(null);
               clearCart();
@@ -408,23 +363,8 @@ export default function JrApp() {
           </motion.nav>
         )}
 
-        {/* Location picker sheet */}
+        {/* Location picker sheet (GPS real + area manual) */}
         <LocationSheet open={locationOpen} onOpenChange={setLocationOpen} />
-
-        {/* Notifications sheet */}
-        <NotificationSheet
-          open={notifOpen}
-          onOpenChange={setNotifOpen}
-          onOpenOrders={() => goTab({ name: "orders" })}
-          onOpenFlashSale={() => push({ name: "flash-sale" })}
-        />
-
-        {/* Order barcode scan dialog */}
-        <ScanDialog
-          open={scanOpen}
-          onOpenChange={setScanOpen}
-          onOrderUpdated={bumpOrders}
-        />
 
         {/* Track order + barcode bottom sheet */}
         <TrackSheet order={trackOrder} onClose={() => setTrackOrder(null)} />
