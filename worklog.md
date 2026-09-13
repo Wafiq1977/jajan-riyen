@@ -299,3 +299,19 @@ Stage Summary:
 - OTP WhatsApp REAL aktif: kode tidak lagi tampil di layar; login mewajibkan kode dari WA asli
 - Kredensial hanya di .env (gitignored) - tidak ter-commit ke GitHub
 - Catatan operasional: device Fonnte harus tetap terkoneksi di md.fonnte.com; rate limit 5 kode/nomor/jam; kesalahan gateway -> 502 dengan pesan user-friendly
+
+---
+Task ID: 14
+Agent: main (Z.ai Code)
+Task: Diagnosa laporan user "Terjadi kesalahan server" saat klik Kirim Kode via WhatsApp
+
+Work Log:
+- Grep dev.log: TIDAK ada POST /api/auth/otp 500; hanya 2 POST (tes curl saya, keduanya 200). Dua 500 lama dari /api/upload (sudah terfix, era sebelumnya)
+- Klik OTP user tidak pernah sampai ke server sandbox ini -> respons pasti dari salinan server lain
+- Verifikasi UI E2E via agent-browser: buka app -> clear localStorage -> keranjang -> login -> isi nomor -> klik "Kirim Kode via WhatsApp" -> pindah ke "Masukkan Kode Verifikasi" tanpa error; POST /api/auth/otp 200 (238ms) tercatat
+- Kesimpulan: error berasal dari deployment lain (kemungkinan besar Vercel tanpa database yang berfungsi - SQLite read-only di Vercel -> Prisma throw -> 500 "Terjadi kesalahan server", persis teks di catch block route)
+
+Stage Summary:
+- Sandbox 100% sehat: OTP WhatsApp real jalan (curl + browser + log)
+- Fix untuk Vercel: Neon Postgres (B1-B3 di PANDUAN-DEPLOY.md), env DATABASE_URL + FONNTE_TOKEN + OTP_SALT, provider prisma postgresql
+- Sarankan user konfirmasi di URL mana dia klik (preview sandbox vs vercel.app)
