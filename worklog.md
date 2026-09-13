@@ -353,3 +353,21 @@ Stage Summary:
 - Railway path terpilih: next start non-standalone -> public/ dilayani live dari disk -> Volume /app/public/uploads permanen
 - Database tetap Neon (nol migrasi); Vercel boleh dihapus/dibiarkan
 - Ter-commit & ter-push ke GitHub
+
+---
+Task ID: 17
+Agent: main (Z.ai Code)
+Task: User ingin tetap di Vercel dengan upload gambar gratis - jawab soal penyimpanan lokal + implementasi opsi Cloudinary
+
+Work Log:
+- Jelaskan: disk lokal mustahil di Vercel (filesystem read-only + serverless ephemeral per-invocation)
+- Cek render gambar: tidak ada next/image (semua <img>) -> URL cloud langsung jalan tanpa remotePatterns
+- Rewrite src/app/api/upload/route.ts dua mode otomatis: CLOUDINARY (signed upload via fetch tanpa SDK, folder jajan-riyen) bila 3 env terisi; fallback DISK public/uploads (sandbox/VPS/Railway) - perilaku lama utuh
+- Verifikasi: lint bersih; tes fallback disk via curl multipart -> {"storage":"disk"} OK (file tes dihapus)
+- Buat PANDUAN-CLOUDINARY.md (daftar gratis, 3 kredensial dari Dashboard, env vars Vercel, redeploy, uji, troubleshooting, bonus alternatif simpan di Neon)
+
+Stage Summary:
+- Path Vercel gratis siap: user tinggal daftar Cloudinary -> set CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET di Vercel -> Redeploy
+- Tanpa env Cloudinary tidak ada perubahan perilaku (disk mode tetap jalan di sandbox/Railway)
+- Cloud path belum bisa diuji di sandbox (butuh kredensial akun Cloudinary user) - diverifikasi user setelah setup
+- Ter-commit & ter-push (Vercel auto-deploy kode baru)
