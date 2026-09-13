@@ -283,3 +283,19 @@ Stage Summary:
 - Repo live: https://github.com/Wafiq1977/jajan-riyen (public, branch main, up-to-date)
 - .env & database TIDAK ikut ke GitHub (aman); pengguna clone perlu: cp .env.example .env, isi DATABASE_URL, bun install, bun run db:push
 - Token PAT tersimpan lokal ~/.git-credentials untuk push berikutnya; sarankan user revoke & ganti token bila ingin rotasi
+
+---
+Task ID: 13
+Agent: main (Z.ai Code)
+Task: Konfigurasi gateway OTP WhatsApp real via Fonnte (token dari user)
+
+Work Log:
+- Baca src/lib/otp.ts + api/auth/otp/route.ts: prioritas gateway Fonnte > Wablas > Twilio; tanpa token = devMode (kode tampil di layar)
+- Tulis .env: FONNTE_TOKEN=cjzzWh... (dari md.fonnte.com device user) + OTP_SALT acak 32 char
+- Verifikasi end-to-end: GET /api/auth/otp -> {provider:"fonnte",via:"whatsapp"}; POST dengan nomor tes fiktif 081234000000 -> {sent:true,provider:"fonnte"} (200, 279ms)
+- dev.log: alur DB lengkap (rate-limit, invalidasi kode lama, insert hash) tanpa error "OTP send failed"
+
+Stage Summary:
+- OTP WhatsApp REAL aktif: kode tidak lagi tampil di layar; login mewajibkan kode dari WA asli
+- Kredensial hanya di .env (gitignored) - tidak ter-commit ke GitHub
+- Catatan operasional: device Fonnte harus tetap terkoneksi di md.fonnte.com; rate limit 5 kode/nomor/jam; kesalahan gateway -> 502 dengan pesan user-friendly
