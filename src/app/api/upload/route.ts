@@ -130,6 +130,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: `/api/files/${row.id}`, storage: "db" });
   } catch (err) {
     console.error("[upload] gagal:", err);
-    return NextResponse.json({ error: "Gagal mengunggah file" }, { status: 500 });
+    return NextResponse.json(
+      {
+        error: "Gagal mengunggah file",
+        detail: err instanceof Error ? err.message.slice(0, 160) : "tidak diketahui",
+      },
+      { status: 500 }
+    );
   }
 }

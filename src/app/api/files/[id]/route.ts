@@ -37,6 +37,10 @@ export async function GET(
     });
   } catch (err) {
     console.error("[files] gagal melayani gambar:", err);
-    return new NextResponse("Terjadi kesalahan server", { status: 500 });
+    return new NextResponse(
+      "Terjadi kesalahan server" +
+        (err instanceof Error ? `: ${err.message.slice(0, 140)}` : ""),
+      { status: 500 }
+    );
   }
 }
