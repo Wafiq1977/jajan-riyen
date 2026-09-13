@@ -336,3 +336,20 @@ Stage Summary:
 - SQLite lokal (db/custom.db) tidak dipakai lagi; skema postgresql ter-commit
 - Tersisa untuk user: set 3 env vars di Vercel (DATABASE_URL/FONNTE_TOKEN/OTP_SALT) lalu Redeploy
 - Catatan: upload foto tetap terbatas di Vercel (filesystem read-only) - opsi VPS/Railway untuk 100% fitur
+
+---
+Task ID: 16
+Agent: main (Z.ai Code)
+Task: Jawab opsi upload gambar di Vercel + buat panduan lengkap deploy ke Railway
+
+Work Log:
+- Jawaban opsi Vercel: bisa dengan Cloudinary/UploadThing (perlu ubah src/app/api/upload/route.ts + akun cloud)
+- Audit next.config (output standalone, start pakai bun) + upload route (tulis ke process.cwd()/public/uploads)
+- Buat PANDUAN-RAILWAY.md: build/start command override (npx prisma generate && npx next build / npx next start), env vars Neon+Fonnte+salt, Volume /app/public/uploads, Generate Domain, checklist verifikasi, troubleshooting
+- Tanpa rahasia di file (repo public) - nilai env disuruh salin dari Vercel
+- Tambah pointer di PANDUAN-DEPLOY.md Opsi C ke panduan baru
+
+Stage Summary:
+- Railway path terpilih: next start non-standalone -> public/ dilayani live dari disk -> Volume /app/public/uploads permanen
+- Database tetap Neon (nol migrasi); Vercel boleh dihapus/dibiarkan
+- Ter-commit & ter-push ke GitHub

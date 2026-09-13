@@ -200,6 +200,10 @@ bun run db:push            # tabel dibuat langsung di Neon
 
 ### OPSI C — Deploy ke Railway
 
+> 🚂 **Panduan lengkap & paling baru: lihat `PANDUAN-RAILWAY.md`** — memakai database
+> Neon + Volume untuk upload gambar (semua fitur jalan 100%). Panduan singkat di bawah
+> ini adalah versi lama dengan SQLite lokal.
+
 1. Buka **https://railway.app** → New Project → Deploy from GitHub → pilih `jajan-riyen`
 2. Tambahkan **Volume** (untuk file SQLite): mount ke `/app/db`
 3. Variables → tambahkan `DATABASE_URL=file:/app/db/custom.db`, `FONNTE_TOKEN`, `OTP_SALT`
