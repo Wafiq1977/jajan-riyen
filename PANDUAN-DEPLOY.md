@@ -85,12 +85,15 @@ Saat ini kode verifikasi berjalan dalam **mode pengembangan** (kode tampil di la
 | | Opsi A: VPS | Opsi B: Vercel | Opsi C: Railway |
 |---|---|---|---|
 | Biaya | ± Rp60–100rb/bln | Gratis (Hobby) | ± $5/bln |
-| Database SQLite lokal | ✅ persisten | ❌ ganti Turso | ✅ volume persisten |
+| Database SQLite lokal | ✅ persisten | ❌ ganti Postgres (Neon) | ✅ volume persisten |
+| Upload foto (logo/banner/QRIS/produk) | ✅ | ⚠️ perlu Cloudinary | ✅ |
 | Kamera & GPS (HTTPS) | ✅ | ✅ | ✅ |
 | Kesulitan | Sedang | Mudah | Mudah |
 | Cocok untuk | Produksi serius | Coba-coba cepat | Produksi simpel |
 
 > 📷 **PENTING:** Kamera scan & GPS hanya jalan di **HTTPS**. Ketiga opsi di atas sudah menyediakan HTTPS otomatis.
+>
+> 🏆 **Rekomendasi agar 100% fitur berfungsi tanpa ubah kode:** pilih **VPS (Opsi A)** atau **Railway (Opsi C)** — database & upload foto langsung jalan. Vercel cocok untuk demo cepat, tapi butuh penyesuaian database + penyimpanan gambar.
 
 ---
 
@@ -126,6 +129,7 @@ EOF
 
 bun install                # atau: npm install
 bun run db:push            # buat tabel database
+bunx tsx prisma/seed.ts    # (opsional) isi data toko & produk contoh
 bun run build              # build produksi
 pm2 start "bun run start" --name jajanriyen   # jalan di port 3000
 pm2 save && pm2 startup    # auto-start saat server reboot
@@ -161,33 +165,36 @@ Selesai! Aplikasi live di `https://jajanmu.com` 🎉
 
 ### OPSI B — Deploy ke Vercel (paling cepat)
 
-Database SQLite tidak bisa dipakai di Vercel (filenya tidak persisten), jadi kita pindah ke **Turso** (SQLite di cloud, gratis):
+Database SQLite berbasis file **tidak bisa** dipakai di Vercel (filesystem hanya-baca, isinya hilang setiap deploy). Jadi pindah ke **Postgres cloud gratis dari Neon**:
 
-**B1. Siapkan database Turso:**
-```bash
-# install CLI turso: https://docs.turso.dev/cli/install
-turso auth signup
-turso db create jajanriyen
-turso db show jajanriyen --url          # → catat LIBSQL_URL
-turso db tokens create jajanriyen       # → catat LIBSQL_TOKEN
-```
+**B1. Siapkan database Neon (gratis, tanpa kartu kredit):**
+1. Daftar di **https://neon.tech** → buat project baru
+2. Salin **Connection String** (bentuknya `postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require`)
 
 **B2. Ubah provider Prisma** di `prisma/schema.prisma`:
 ```prisma
 datasource db {
-  provider = "sqlite"   // tetap sqlite (Turso kompatibel via driver adapter)
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 ```
-lalu gunakan url Turso di Vercel: `DATABASE_URL=libsql://jajanriyen-xxx.turso.io?authToken=TOKEN`
+Lalu di komputermu:
+```bash
+# sementara arahkan DATABASE_URL di .env ke connection string Neon
+bun run db:generate
+bun run db:push            # tabel dibuat langsung di Neon
+```
 
-> 📌 Alternatif yang lebih simpel: pakai penyedia **Postgres** (Neon/Supabase gratis) — ganti `provider = "postgresql"` dan jalankan `bun run db:push` ulang. Struktur schema tidak berubah.
+> 📌 Alternatif Postgres gratis lain: **Supabase** (Settings → Database → Connection string) — langkahnya sama persis.
 
 **B3. Import ke Vercel:**
 1. Buka **https://vercel.com/new** → pilih repo `jajan-riyen`
-2. **Environment Variables** → tambahkan `DATABASE_URL`, `FONNTE_TOKEN`, `OTP_SALT`
-3. Klik **Deploy** — selesai! URL: `https://jajan-riyen.vercel.app`
-4. (Opsional) Custom domain: Settings → Domains
+2. **Build Command** → isi manual: `prisma generate && next build`
+3. **Environment Variables** → tambahkan `DATABASE_URL` (connection string Neon), `FONNTE_TOKEN`, `OTP_SALT`
+4. Klik **Deploy** — selesai! URL: `https://jajan-riyen.vercel.app`
+5. (Opsional) Custom domain: Settings → Domains
+
+> ⚠️ **Keterbatasan Vercel:** fitur upload foto (logo/banner/produk/QRIS) menulis ke disk, sedangkan filesystem Vercel **read-only** — upload akan gagal dengan error di log. Solusi: pindahkan penyimpanan ke **Cloudinary/UploadThing** (ubah `src/app/api/upload/route.ts` untuk kirim ke cloud dan simpan URL-nya), atau pilih VPS/Railway agar fitur ini langsung jalan tanpa ubah kode.
 
 ---
 
@@ -265,13 +272,9 @@ TWILIO_FROM=
 
 # KEAMANAN OTP (disarankan diisi dengan teks acak panjang)
 OTP_SALT=
-
-# Opsional: foto/produk yang diunggah penjual tersimpan di public/uploads.
-# Untuk Vercel (filesystem read-only), ganti ke penyimpanan cloud (Cloudinary/S3)
-# — lihat catatan di bawah.
 ```
 
-> 📌 **Catatan upload untuk Vercel:** file yang diunggah penjual (logo/banner/produk/QRIS) disimpan di folder `public/uploads`. Di VPS/Railway ini aman. Di Vercel gunakan Cloudinary/UploadThing (ubah `src/app/api/upload/route.ts` untuk kirim ke cloud, simpan URL-nya).
+> 📌 **Catatan upload:** foto logo/banner/produk/QRIS yang diunggah penjual disimpan ke folder `public/uploads/` oleh `src/app/api/upload/route.ts` (maks 5 MB, format PNG/JPG/WebP/GIF). Di **VPS/Railway** langsung jalan. Di **Vercel** filesystem read-only — gunakan Cloudinary/S3 (ubah route tersebut untuk kirim ke cloud, simpan URL-nya).
 
 ---
 

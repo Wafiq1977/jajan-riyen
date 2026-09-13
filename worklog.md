@@ -229,3 +229,20 @@ Stage Summary:
 - Logo aplikasi kini DAUN HIJAU 3D REALISTIS (PNG transparan) di seluruh titik: splash, login, akun, favicon, dan semua ikon PWA.
 - ERD & Use Case selesai sebagai file PNG resolusi tinggi: docs/erd.png (3800x2896), docs/usecase.png (3920x2860), tersalin ke public/docs/ dan dapat dibuka dari menu Akun > Dokumentasi Proyek.
 - Artefak: public/brand/logo-leaf-raw.png, public/logo-leaf.png, scripts/process-logo.mjs, public/icons/* (regenerated), public/docs/erd.png, public/docs/usecase.png, brand.tsx v4, layout.tsx (icons), account-screen.tsx (DocsDialog).
+
+---
+Task ID: 12 (main)
+Agent: Z.ai Code (main)
+Task: Panduan deploy agar semua fitur berfungsi & aplikasi bisa didownload siapa pun
+
+Work Log:
+- Audit PANDUAN-DEPLOY.md terhadap kode aktual: nama env otp.ts cocok (FONNTE_TOKEN/WABLAS_TOKEN+DOMAIN/TWILIO_*/OTP_SALT); menemukan .env.example HILANG dan route /api/upload HILANG (komponen ImageUploader POST ke /api/upload tapi route tidak ada -> fitur upload rusak).
+- Membuat ulang src/app/api/upload/route.ts: multipart field "file", validasi tipe (PNG/JPG/WebP/GIF) & maks 5MB, simpan ke public/uploads via fs/promises (fix ERR_INVALID_ARG_TYPE dari callback writeFile), return {url:"/uploads/<name>"}; proses kerja runtime nodejs. Terverifikasi curl: upload PNG -> 200 + file dilayani; file non-gambar -> ditolak pesan Indonesia.
+- Membuat ulang .env.example lengkap (DATABASE_URL, token gateway OTP, OTP_SALT).
+- Memperbaiki PANDUAN-DEPLOY.md: bagian Vercel yang lama menjanjikan Turso+provider sqlite "via driver adapter" (tidak akurat, butuh adapter kode) diganti jalur Neon/Supabase Postgres yang benar (ubah provider -> db:generate+db:push -> build command "prisma generate && next build"), tabel perbandingan diberi baris "Upload foto", rekomendasi tegas VPS/Railway utk 100% fitur tanpa ubah kode, catatan upload diroute baru, langkah seed opsional di VPS.
+- Lint 0/0; dev.log bersih.
+
+Stage Summary:
+- Fitur upload logo/banner/produk/QRIS kembali berfungsi (route /api/upload direkonstruksi + teruji).
+- PANDUAN-DEPLOY.md kini akurat: 3 jalur deploy (VPS paling lengkap, Vercel+Neon utk cepat, Railway), aktivasi OTP WA/SMS beneran, PWA install, APK via PWABuilder/Bubblewrap, publish Play Store, troubleshooting, checklist go-live.
+- Artefak: src/app/api/upload/route.ts (baru), .env.example (baru), PANDUAN-DEPLOY.md (revisi).
