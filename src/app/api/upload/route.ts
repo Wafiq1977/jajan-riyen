@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createHash, randomBytes } from "crypto";
-import { mkdirSync } from "fs";
-import { writeFile } from "fs/promises";
-import path from "path";
+import { createHash } from "crypto";
+import sharp from "sharp";
+import { db } from "@/lib/db";
 
 export const runtime = "nodejs";
 
-const MAX_SIZE = 5 * 1024 * 1024; // 5 MB
+// 4 MB (aman di bawah batas body request serverless Vercel ±4,5 MB)
+const MAX_SIZE = 4 * 1024 * 1024;
 const ALLOWED: Record<string, string> = {
   "image/png": ".png",
   "image/jpeg": ".jpg",
@@ -18,13 +18,12 @@ const ALLOWED: Record<string, string> = {
  * POST /api/upload — unggah gambar (multipart, field "file").
  * Dipakai ImageUploader untuk: logo toko, banner, foto produk, gambar QRIS.
  *
- * DUA MODE OTOMATIS:
- * 1. CLOUDINARY — aktif bila CLOUDINARY_CLOUD_NAME + CLOUDINARY_API_KEY +
- *    CLOUDINARY_API_SECRET terisi di env. Wajib untuk Vercel (filesystem
- *    read-only). Gambar dilayani dari res.cloudinary.com.
- * 2. DISK (fallback) — tanpa env Cloudinary, file ditulis ke public/uploads/
- *    dan dilayani di /uploads/<nama>. Cocok untuk VPS, Railway (dengan
- *    Volume), dan sandbox development.
+ * DUA MODE OTOMATIS (zero-config, jalan di Vercel/VPS/Railway):
+ * 1. CLOUDINARY (opsional) — aktif bila CLOUDINARY_CLOUD_NAME + API_KEY +
+ *    API_SECRET terisi. Gambar dilayani dari CDN res.cloudinary.com.
+ * 2. DATABASE NEON (default) — gambar dioptimasi (resize maks 1280px + WebP)
+ *    lalu disimpan di tabel uploaded_files dan dilayani via /api/files/<id>.
+ *    Gratis, tanpa akun baru, dan tersedia dari semua deployment.
  */
 
 const CLD_CLOUD = process.env.CLOUDINARY_CLOUD_NAME;
@@ -61,6 +60,26 @@ async function uploadToCloudinary(buffer: Buffer, mime: string, ext: string): Pr
   return data.secure_url;
 }
 
+/**
+ * Optimasi gambar hemat kuota DB: resize sisi terpanjang maks 1280px + konversi
+ * WebP kualitas 82 (biasanya 10-30x lebih kecil). GIF dilewati agar animasi utuh.
+ * Bila hasil optimasi justru lebih besar, atau sharp gagal — pakai file asli.
+ */
+async function optimize(buffer: Buffer, mime: string): Promise<{ data: Buffer; mime: string }> {
+  if (mime === "image/gif") return { data: buffer, mime };
+  try {
+    const out = await sharp(buffer)
+      .rotate()
+      .resize({ width: 1280, height: 1280, fit: "inside", withoutEnlargement: true })
+      .webp({ quality: 82 })
+      .toBuffer();
+    if (out.length < buffer.length) return { data: out, mime: "image/webp" };
+    return { data: buffer, mime };
+  } catch {
+    return { data: buffer, mime };
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const form = await req.formData();
@@ -81,14 +100,14 @@ export async function POST(req: NextRequest) {
     }
     if (blob.size > MAX_SIZE) {
       return NextResponse.json(
-        { error: "Ukuran maksimal 5 MB" },
+        { error: "Ukuran maksimal 4 MB" },
         { status: 400 }
       );
     }
 
     const buffer = Buffer.from(await blob.arrayBuffer());
 
-    // MODE 1 — Cloudinary (Vercel / produksi tanpa disk)
+    // MODE 1 — Cloudinary (opsional, via env)
     if (cloudinaryActive) {
       try {
         const url = await uploadToCloudinary(buffer, type, ext);
@@ -102,14 +121,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // MODE 2 — Disk lokal (VPS / Railway+Volume / sandbox)
-    const dir = path.join(process.cwd(), "public", "uploads");
-    mkdirSync(dir, { recursive: true });
-
-    const name = `${Date.now()}-${randomBytes(4).toString("hex")}${ext}`;
-    await writeFile(path.join(dir, name), buffer);
-
-    return NextResponse.json({ url: `/uploads/${name}`, storage: "disk" });
+    // MODE 2 — Database Neon (default, gratis, zero-config)
+    const optimized = await optimize(buffer, type);
+    const row = await db.uploadedFile.create({
+      data: { mime: optimized.mime, size: optimized.data.length, data: optimized.data },
+      select: { id: true },
+    });
+    return NextResponse.json({ url: `/api/files/${row.id}`, storage: "db" });
   } catch (err) {
     console.error("[upload] gagal:", err);
     return NextResponse.json({ error: "Gagal mengunggah file" }, { status: 500 });

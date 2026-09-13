@@ -1,19 +1,20 @@
-# ☁️ PANDUAN CLOUDINARY — Upload Gambar di Vercel (Gratis)
+# ☁️ PANDUAN CLOUDINARY — OPSIONAL (CDN untuk gambar)
 
-> Untuk kamu yang **tetap ingin di Vercel** tanpa bayar. Filesystem Vercel read-only,
-> jadi gambar disimpan ke **Cloudinary** (free tier, tanpa kartu kredit) — kode sudah
-> saya siapkan: begitu 3 env vars terpasang, upload otomatis pindah ke cloud.
+> **UPDATE:** upload gambar sekarang **default tersimpan di database Neon** — gratis,
+> tanpa daftar akun, otomatis dioptimasi (WebP, ±90% lebih kecil), dan langsung jalan
+> di Vercel **tanpa konfigurasi apa pun**. Panduan ini hanya untuk kamu yang ingin
+> *upgrade* ke CDN Cloudinary (loading lebih cepat, kuota database lebih hemat).
 
 ---
 
 ## Cara Kerjanya (sudah jalan otomatis)
 
-`src/app/api/upload/route.ts` sekarang punya 2 mode:
+`src/app/api/upload/route.ts` punya 2 mode:
 
 | Kondisi | Mode | Dipakai di |
 |---|---|---|
-| Env Cloudinary **terisi** | ☁️ Gambar → `res.cloudinary.com` | **Vercel** |
-| Env Cloudinary **kosong** | 💾 Gambar → `public/uploads/` | Sandbox, VPS, Railway+Volume |
+| Env Cloudinary **terisi** | ☁️ Gambar → CDN `res.cloudinary.com` | Opsional, di mana pun |
+| Env Cloudinary **kosong** | 🗄️ Gambar → **database Neon** via `/api/files/<id>` | **Default semua platform** |
 
 Jadi menambah Cloudinary **tidak merusak apa pun** di environment lain.
 

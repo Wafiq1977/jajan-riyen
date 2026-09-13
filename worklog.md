@@ -371,3 +371,22 @@ Stage Summary:
 - Tanpa env Cloudinary tidak ada perubahan perilaku (disk mode tetap jalan di sandbox/Railway)
 - Cloud path belum bisa diuji di sandbox (butuh kredensial akun Cloudinary user) - diverifikasi user setelah setup
 - Ter-commit & ter-push (Vercel auto-deploy kode baru)
+
+---
+Task ID: 18
+Agent: main (Z.ai Code)
+Task: User pilih opsi gratis tanpa akun baru - implementasi penyimpanan gambar di database Neon (Vercel-ready)
+
+Work Log:
+- prisma/schema.prisma: model baru UploadedFile (mime, size, data Bytes) -> db:push ke Neon sukses
+- Rewrite src/app/api/upload/route.ts: prioritas Cloudinary (opsional via env) -> default DB; sharp optimize resize 1280px + WebP q82 (GIF dilewati, fallback file asli); MAX_SIZE diturunkan 5MB -> 4MB (di bawah batas body serverless Vercel 4,5MB)
+- Route baru GET /api/files/[id]: layari bytea + Content-Type + Cache-Control immutable; guard regex id
+- Uji end-to-end: upload banner 1.296KB -> {"storage":"db"}; fetch 200 image/webp 111KB (89% lebih kecil); row DB terverifikasi; data tes dihapus
+- sharp@0.34 sudah ada di dependencies (aman bundle Vercel)
+- Update 3 panduan: PANDUAN-CLOUDINARY.md jadi opsional/CDN; PANDUAN-RAILWAY.md Volume opsional; PANDUAN-DEPLOY.md catatan upload + batas 4MB
+
+Stage Summary:
+- Upload gambar kini berfungsi di Vercel TANPA env vars & TANPA akun baru (default DB Neon)
+- Estimasi kuota: 0.5GB Neon free + optimasi 90% = ribuan gambar; kuota Neon bandwidth free besar
+- Sandbox & produksi punya perilaku identik; Cloudinary tetap bisa menyala kapan saja via 3 env
+- Ter-commit & ter-push (Vercel auto-deploy) - tidak ada action user yang diperlukan

@@ -278,7 +278,7 @@ TWILIO_FROM=
 OTP_SALT=
 ```
 
-> 📌 **Catatan upload:** foto logo/banner/produk/QRIS yang diunggah penjual disimpan ke folder `public/uploads/` oleh `src/app/api/upload/route.ts` (maks 5 MB, format PNG/JPG/WebP/GIF). Di **VPS/Railway** langsung jalan. Di **Vercel** filesystem read-only — gunakan Cloudinary/S3 (ubah route tersebut untuk kirim ke cloud, simpan URL-nya).
+> 📌 **Catatan upload:** foto logo/banner/produk/QRIS (maks 4 MB, PNG/JPG/WebP/GIF) otomatis **dioptimasi** (resize + WebP) lalu disimpan **langsung di database** (tabel `uploaded_files`) dan dilayani via `/api/files/<id>` — gratis, permanen, dan jalan di **semua platform** termasuk Vercel tanpa konfigurasi. Opsional: isi env `CLOUDINARY_*` untuk memakai CDN Cloudinary (lihat `PANDUAN-CLOUDINARY.md`).
 
 ---
 

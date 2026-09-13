@@ -74,14 +74,18 @@ OTP_SALT=<salt acak yang sudah kamu buat>
 
 ---
 
-## 5. Tambahkan Volume (agar upload gambar permanen 🖼️)
+## 5. Volume (SUDAH TIDAK WAJIB — opsional 🖼️)
+
+> ✅ **Kabar baik:** upload gambar kini tersimpan **di database Neon** (otomatis
+> dioptimasi ke WebP) dan dilayani via `/api/files/<id>` — permanen tanpa Volume.
+> Volume di bawah ini **opsional**, hanya jika ingin mengurangi kuota database.
 
 1. **Klik service → tab Volumes → + New Volume**
 2. **Mount path**: `/app/public/uploads`
 3. **Add Volume** → service akan redeploy otomatis
 
-Semua foto yang di-upload penjual (logo toko, banner, produk, QRIS) ditulis ke folder
-tersebut, dan **isi Volume tidak hilang walau redeploy berulang kali**.
+Dengan Volume terpasang, foto ditulis ke folder tersebut dan **tidak hilang walau
+redeploy berulang kali**. Tanpa Volume pun upload tetap jalan (tersimpan di database).
 
 ---
 
@@ -126,7 +130,7 @@ HTTPS aktif otomatis → kamera (scan QR), lokasi (GPS), dan tombol **Install Ap
 | 500 saat minta kode OTP | `DATABASE_URL` salah/salah tempel — harus URL Neon `-pooler`; cek 3 Variables lengkap |
 | OTP terkirim tapi kode salah | Device Fonnte offline — cek **md.fonnte.com**, scan ulang QR bila perlu |
 | Gambar hilang setelah redeploy | Volume belum terpasang di `/app/public/uploads` (bagian 5) |
-| Upload gagal > 5 MB | Batas memang 5 MB (PNG/JPG/WebP/GIF) — kompres dulu gambarnya |
+| Upload gagal > 4 MB | Batas memang 4 MB (PNG/JPG/WebP/GIF) — kompres dulu gambarnya |
 
 ---
 

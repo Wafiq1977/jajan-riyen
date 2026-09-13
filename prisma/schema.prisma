@@ -103,3 +103,13 @@ model VerificationCode {
 
   @@index([phone, createdAt])
 }
+
+// Penyimpanan gambar (logo/banner/produk/QRIS) langsung di database —
+// solusi gratis untuk Vercel (filesystem read-only). Dilayani via /api/files/[id].
+model UploadedFile {
+  id        String   @id @default(cuid())
+  mime      String // contoh: image/webp
+  size      Int // byte setelah optimasi
+  data      Bytes
+  createdAt DateTime @default(now())
+}
