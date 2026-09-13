@@ -315,3 +315,24 @@ Stage Summary:
 - Sandbox 100% sehat: OTP WhatsApp real jalan (curl + browser + log)
 - Fix untuk Vercel: Neon Postgres (B1-B3 di PANDUAN-DEPLOY.md), env DATABASE_URL + FONNTE_TOKEN + OTP_SALT, provider prisma postgresql
 - Sarankan user konfirmasi di URL mana dia klik (preview sandbox vs vercel.app)
+
+---
+Task ID: 15
+Agent: main (Z.ai Code)
+Task: Migrasi database ke Neon Postgres agar deployment Vercel jalan (user konfirmasi error "Terjadi kesalahan server" terjadi di jajan-riyen.vercel.app)
+
+Work Log:
+- Konfirmasi diagnosis: user menguji di https://jajan-riyen.vercel.app (SQLite tidak bisa di Vercel -> 500)
+- User memberi Connection String Neon; verifikasi 16 aset gambar seed sudah ter-commit ke git
+- prisma/schema.prisma: provider sqlite -> postgresql; .env: DATABASE_URL -> Neon pooler URL (gitignored)
+- db:generate + db:push ke Neon direct URL (tanpa -pooler) sukses 10.7s; seed prisma/seed.ts: 5 toko + 14 produk
+- Kendala 1: env bootstrap sandbox export DATABASE_URL=file:... (menimpa .env) -> server start dengan override inline
+- Kendala 2: start server pakai "&" polos ter-reap saat command berakhir -> pakai double-fork "( nohup ... & )"
+- Verifikasi: GET /api/stores 200 (5 toko dari Neon), POST /api/auth/otp 200 sent:true via fonnte (1.99s)
+- Update .env.example (contoh Postgres Neon + catatan direct URL untuk db push); commit + push (trigger auto-deploy Vercel)
+
+Stage Summary:
+- Sandbox & produksi kini satu database: Neon Postgres (ep-damp-dream-ae9pxm7f)
+- SQLite lokal (db/custom.db) tidak dipakai lagi; skema postgresql ter-commit
+- Tersisa untuk user: set 3 env vars di Vercel (DATABASE_URL/FONNTE_TOKEN/OTP_SALT) lalu Redeploy
+- Catatan: upload foto tetap terbatas di Vercel (filesystem read-only) - opsi VPS/Railway untuk 100% fitur
