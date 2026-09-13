@@ -390,3 +390,26 @@ Stage Summary:
 - Estimasi kuota: 0.5GB Neon free + optimasi 90% = ribuan gambar; kuota Neon bandwidth free besar
 - Sandbox & produksi punya perilaku identik; Cloudinary tetap bisa menyala kapan saja via 3 env
 - Ter-commit & ter-push (Vercel auto-deploy) - tidak ada action user yang diperlukan
+
+---
+Task ID: 19
+Agent: main (Z.ai Code)
+Task: Bugfix - "Gagal mengunggah file" saat daftar toko & upload logo di Vercel
+
+Work Log:
+- Reproduce di production: POST /api/upload ke jajan-riyen.vercel.app -> 500 {"error":"Gagal mengunggah file"}; sandbox OK (storage:db)
+- Diagnosis bertahap: /api/stores 200 di Vercel (DB terbaca), /api/files/[id] ada (kode terbaru live), TAPI GET /api/files/<id-nyata> 500 di Vercel padahal 200 di sandbox -> Prisma Client di Vercel dibuat dari schema LAMA (belum ada model UploadedFile)
+- Akar masalah: repo pakai bun.lock; commit c16792a tidak mengubah dependensi -> bun install skip reinstall -> postinstall @prisma/client (prisma generate) tidak jalan ulang -> client stale tanpa model UploadedFile -> db.uploadedFile undefined -> TypeError -> 500
+- Fix 1: package.json build script = "prisma generate && next build && ..." (rekomendasi resmi Prisma untuk Vercel) + postinstall "prisma generate"
+- Fix 2: route upload & files diberi field detail diagnostik pada respons 500 (biar gampang diagnosa kalau ada masalah lain)
+- Commit 326c63a + push -> Vercel auto-deploy
+- Verifikasi production: POST upload ke Vercel -> {"storage":"db"} sukses; GET /api/files/<id> di Vercel -> 200 image/webp + Cache-Control immutable; GET file yang dibuat sandbox juga 200
+- Verifikasi UI end-to-end via agent-browser (sandbox, OTP devMode): login OTP -> tab Akun -> Buka Toko -> isi KTP/NIK/alamat/toko/lokasi (pin via parse link lat,lng) -> upload logo PNG 1.1MB via input file -> preview /api/files/ muncul TANPA error -> submit -> "Toko Uji Coba JR aktif" + badge Pembeli·Penjual -> store tampil di /api/stores dengan logoUrl /api/files/... -> GET logo 200 image/webp 107KB (hemat 90% via sharp)
+- Screenshot bukti: tool-results/uji-daftar-toko.png
+- Cleanup: data uji (user+toko, file uploaded, kode OTP) dihapus dari Neon; server sandbox dipulihkan dengan FONNTE_TOKEN aktif (fonnte/whatsapp)
+
+Stage Summary:
+- Upload gambar di Vercel kini BERFUNGSI 100% gratis via database Neon (tanpa Cloudinary, tanpa akun baru)
+- Akar masalah BUKAN kode aplikasi tapi prisma generate yang tidak jalan saat build Vercel (client stale) - kini deterministik via build script
+- Kualitas gambar otomatis: resize maks 1280px + WebP q82 (1.1MB -> 107KB, hemat kuota Neon ~90%)
+- Batas ukuran upload: 4 MB (aman di bawah limit body request serverless Vercel 4,5MB)
