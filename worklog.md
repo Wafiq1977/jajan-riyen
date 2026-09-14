@@ -500,3 +500,20 @@ Stage Summary:
 - Aplikasi kini BENAR diarahkan ke Midtrans SANDBOX dgn key sandbox user; bug "Gagal membuat QRIS" teratasi (akar: key sandbox baru tanpa prefix SB- dianggap produksi)
 - Satu-satunya langkah tersisa (hanya user bisa): aktifkan channel QRIS/GoPay di dashboard.sandbox.midtrans.com → Settings → Payment Methods, daftarkan webhook sandbox, set 2 env di Vercel (MIDTRANS_SERVER_KEY + MIDTRANS_IS_PRODUCTION=false) → Redeploy
 - Key produksi lama tetap valid & tersimpan; utk go-live: aktifkan channel produksi + ganti key + MIDTRANS_IS_PRODUCTION=true
+
+---
+Task ID: 20-e
+Agent: main (Z.ai Code)
+Task: User centang GoPay di dashboard sandbox tapi charge tetap 402 → investigasi & solusi resmi
+
+Work Log:
+- User kirim screenshot: dia mencentang GoPay di **Payment Link Settings** (dashboard.sandbox.midtrans.com/settings/payment-link) → re-test charge QRIS & GoPay ke sandbox: TETAP 402 → terbukti Payment Link = fitur terpisah (link pembayaran manual), tidak mengaktifkan channel untuk transaksi Core API/Snap aplikasi
+- Riset sumber resmi: docs.midtrans.com (index llms.txt; "Activating Payment Methods & Upgrades" = halaman produksi via menu "+ Payment Methods"), dan GitHub Midtrans/midtrans-nodejs-client issue #93: user dgn channel sudah aktif di dashboard tetap kena 402 di Core API → jawaban tim Midtrans (uziwuzzy): "biasanya butuh aktivasi manual" → konfirmasi user lain: "harus request manual kalo CoreAPI dan sekarang sudah acc" via support@midtrans.com
+- Update pesan error create route: sekarang menjelaskan (1) Settings → Payment (bukan Payment Link), (2) opsi email support@midtrans.com utk aktivasi manual Core API + cantumkan MID
+- Update PANDUAN-MIDTRANS.md: langkah aktivasi sandbox (Settings → Payment, peringatan Payment Link tidak berlaku utk API), catatan kasus aktivasi manual + template email siap kirim
+- Belum bisa verifikasi QR sukses — menunggu user: toggle di Settings → Payment DAN/ATAU kirim email support; setelah itu cukup klik "Coba Lagi" di layar QRIS (atau saya re-test charge)
+
+Stage Summary:
+- Akar 402 setelah centang: salah menu — Payment Link Settings tidak berlaku untuk transaksi API; lokasi benar: Settings → Payment
+- Jalur terjamin (terdokumentasi di issue resmi Midtrans): email support@midtrans.com minta aktivasi manual channel Core API (QRIS & GoPay), sertakan MID
+- Aplikasi & panduan kini mengarahkan user ke kedua opsi tsb secara otomatis via pesan error

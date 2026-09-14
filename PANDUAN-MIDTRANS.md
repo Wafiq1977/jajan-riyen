@@ -27,12 +27,33 @@ Sudah dipasang di `.env` sandbox & wajib juga di Vercel (langkah 3 di bawah).
 
 **Cara mengaktifkan QRIS di akun SANDBOX (dikerjakan user):**
 1. Buka https://dashboard.sandbox.midtrans.com
-2. **Settings → Payment Methods** → cari **QRIS / GoPay** → klik **Aktifkan**.
-3. **Settings → Configuration → Payment Notification URL** → isi
+2. **Settings → Payment** (menu "Payment" di sidebar — **BUKAN "Payment Link"**!
+   Yang di Payment Link hanya berlaku untuk fitur link manual, tidak untuk
+   transaksi API/aplikasi) → aktifkan **QRIS / GoPay**.
+3. **⚠️ Bila toggle sudah dicentang tetapi charge tetap ditolak 402** → ini kasus
+   terdokumentasi resmi (GitHub Midtrans/midtrans-nodejs-client issue #93, dijawab
+   tim Midtrans): channel Core API sering **butuh aktivasi manual**. Kirim email ke
+   **support@midtrans.com** (template di bawah). Setelah di-acc, QRIS langsung nyala.
+4. **Settings → Configuration → Payment Notification URL** → isi
    `https://jajan-riyen.vercel.app/api/payment/webhook` (di dashboard **sandbox**).
-4. Set env di Vercel (langkah 3 di bawah) → Redeploy.
-5. Uji: buat pesanan QRIS di aplikasi → QR tampil → bayar via simulator sandbox
+5. Set env di Vercel (langkah 3 di bawah) → Redeploy.
+6. Uji: buat pesanan QRIS di aplikasi → QR tampil → bayar via simulator sandbox
    (langkah 5 di bawah).
+
+**Template email aktivasi manual (kirim dari email terdaftar akun Midtrans):**
+
+> **Subject:** Request aktivasi payment channel Core API — Sandbox
+>
+> Halo tim Midtrans, saya ingin meminta aktivasi channel pembayaran **QRIS
+> (acquirer GoPay)** dan **GoPay** untuk **Core API (/v2/charge)** pada akun
+> **sandbox** saya:
+> - Email akun: (email login dashboard.sandbox.midtrans.com)
+> - MID: (lihat Dashboard → Settings → General Settings)
+> - Error yang muncul: `402 Payment channel is not activated` saat charge
+>   `payment_type=qris` maupun `payment_type=gopay`
+> - Channel sudah dicentang di dashboard namun charge Core API tetap ditolak.
+>
+> Terima kasih.
 
 > Key produksi (`Mid-server-dw70Jx…`) tetap VALID dan sudah tersimpan — dipakai saat
 > mau go-live: aktifkan channel QRIS/GoPay di https://dashboard.midtrans.com, lalu di
