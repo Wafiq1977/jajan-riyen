@@ -477,3 +477,26 @@ Work Log:
 Stage Summary:
 - Aplikasi kini mendiagnosis sendiri masalah key: badge mode (sandbox/produksi) di layar QRIS + pesan error yang menuntun perbaikan env Vercel
 - Tindakan user: ganti nilai MIDTRANS_SERVER_KEY di Vercel dgn Server Key yang benar (Mid-server-*** (disensor, lihat .env/Vercel)), hapus MIDTRANS_IS_PRODUCTION, Redeploy; untuk uji sandbox: pakai SB-Mid-server-... dari dashboard.sandbox.midtrans.com + daftarkan webhook di dashboard sandbox
+
+---
+Task ID: 20-d
+Agent: main (Z.ai Code)
+Task: Pasang key SANDBOX baru dari user, akar masalah "Gagal membuat QRIS" saat mode sandbox, aktifkan jalur sandbox
+
+Work Log:
+- User kirim server key sandbox `Mid-server-gHkC…JsXNT` (TANPA prefix "SB-") → verifikasi auth via API: SANDBOX 200/valid (status lookup jalan), PRODUKSI 401 → key sandbox akun Midtrans BARU berformat identik dgn key produksi, tidak bisa dibedakan dari prefix
+- AKAR BUG "Gagal membuat QRIS" saat user coba sandbox: IS_PRODUCTION lama = key tanpa "SB-" → produksi, sehingga key sandbox baru dikirim ke api.midtrans.com → 401 "Unknown Merchant server_key/id" → tak cocok regex waktu itu → pesan generic
+- Fix src/lib/payment.ts: SERVER_KEY di-trim (anti spasi); IS_PRODUCTION = override EKSPLISIT MIDTRANS_IS_PRODUCTION ("true"/"false") dulu, baru fallback heuristik prefix SB- (key lama tetap zero-config)
+- Resiliensi charge: refaktor jadi midtransCharge/chargeErrorMessage/buildChargeResult; bila channel "qris" ditolak "not activated" → otomatis coba payment_type "gopay" (di dashboard sering toggle terpisah, hasil QRIS QR sama + qr_string); dua-duanya nonaktif → satu pesan jelas yang tetap match regex "not activated"
+- Pesan error create route: kini menyebut lingkungan + URL dashboard yang tepat (dashboard.sandbox.midtrans.com untuk sandbox); pesan 401 diupdate (key sandbox baru tanpa SB- wajib MIDTRANS_IS_PRODUCTION=false)
+- Uji charge langsung ke sandbox dgn key baru: QRIS 402 not-activated, GoPay 402, VA BCA 402 → channel pembayaran di akun SANDBOX user juga BELUM DIAKTIFKAN (akun sandbox baru mulai kosong) — hanya user bisa aktifkan via dashboard.sandbox.midtrans.com → Settings → Payment Methods
+- .env sandbox: key sandbox + MIDTRANS_IS_PRODUCTION=false; dev server restart (override DATABASE_URL Neon pooler + FONNTE_TOKEN='' devMode OTP)
+- Verifikasi API lokal: /api/payment/config → {"gateway":"midtrans","environment":"sandbox"}; POST /api/payment/create (order QRIS Rp10.000) → 502 + pesan ramah SANDBOX + detail "Payment channel is not activated (QRIS & GoPay)" = bukti routing sandbox benar & fallback gopay jalan; webhook signature sha512 key baru → 200 valid, signature palsu → 403
+- Verifikasi UI agent-browser (OTP devMode, 087836049981): login → Pesanan → seed payment PENDING expired utk JR-RWRNXK (tombol Bayar QRIS muncul) → klik → layar QRIS: badge SANDBOX di header + pesan "Channel pembayaran QRIS/GoPay belum diaktifkan di akun Midtrans SANDBOX. Buka https://dashboard.sandbox.midtrans.com → ..." + detail teknis + tombol Coba Lagi. Screenshot: tool-results/qris-sandbox-pesan-aktifasi.png. Browser console bersih
+- Cleanup: payment uji JR-RWRNXK dihapus (0 sisa); lint bersih; commit 7b42102 push → Vercel auto-deploy
+- PANDUAN-MIDTRANS.md: status terbaru (sandbox + channel belum aktif), peringatan format key baru, env Vercel (MIDTRANS_IS_PRODUCTION=false WAJIB), langkah aktivasi sandbox, cara uji simulator, troubleshooting 401/402
+
+Stage Summary:
+- Aplikasi kini BENAR diarahkan ke Midtrans SANDBOX dgn key sandbox user; bug "Gagal membuat QRIS" teratasi (akar: key sandbox baru tanpa prefix SB- dianggap produksi)
+- Satu-satunya langkah tersisa (hanya user bisa): aktifkan channel QRIS/GoPay di dashboard.sandbox.midtrans.com → Settings → Payment Methods, daftarkan webhook sandbox, set 2 env di Vercel (MIDTRANS_SERVER_KEY + MIDTRANS_IS_PRODUCTION=false) → Redeploy
+- Key produksi lama tetap valid & tersimpan; utk go-live: aktifkan channel produksi + ganti key + MIDTRANS_IS_PRODUCTION=true
