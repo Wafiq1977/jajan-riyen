@@ -35,6 +35,7 @@ export default function CheckoutScreen({
   const [qty, setQty] = useState(1);
   const [method, setMethod] = useState<PaymentMethod>("TUNAI");
   const [gateway, setGateway] = useState<"midtrans" | "demo" | null>(null);
+  const [env, setEnv] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -42,7 +43,10 @@ export default function CheckoutScreen({
   useEffect(() => {
     fetch("/api/payment/config")
       .then((r) => r.json())
-      .then((d) => setGateway(d.gateway ?? null))
+      .then((d) => {
+        setGateway(d.gateway ?? null);
+        setEnv(d.environment ?? null);
+      })
       .catch(() => {});
   }, []);
 
@@ -209,7 +213,9 @@ export default function CheckoutScreen({
               !qrisAvailable
                 ? "Penjual belum aktifkan"
                 : gateway === "midtrans"
-                  ? "Scan otomatis"
+                  ? env === "sandbox"
+                    ? "Scan otomatis (Sandbox)"
+                    : "Scan otomatis"
                   : gateway === "demo"
                     ? "Scan & bayar (demo)"
                     : "Scan & bayar"

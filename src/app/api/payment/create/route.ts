@@ -117,8 +117,11 @@ export async function POST(req: NextRequest) {
       error =
         "QRIS otomatis belum aktif: channel pembayaran QRIS/GoPay belum diaktifkan di akun Midtrans. " +
         "Aktifkan di Dashboard Midtrans → Settings → Payment Methods, atau gunakan metode TUNAI sementara.";
-    } else if (/wrong server key|unauthor|401|access denied/i.test(detail)) {
-      error = "Kredensial payment gateway tidak valid. Periksa MIDTRANS_SERVER_KEY di server.";
+    } else if (/unknown merchant|server_key|wrong server key|unauthor|401|access denied/i.test(detail)) {
+      error =
+        "Server Key tidak dikenali gateway. Pastikan yang diset adalah SERVER KEY (bukan Client Key) " +
+        "tanpa spasi — key sandbox diawali 'SB-', key produksi 'Mid-server-' — dan jangan mengisi " +
+        "MIDTRANS_IS_PRODUCTION kecuali bersama key produksi. Setelah mengubah env di Vercel, wajib Redeploy.";
     }
 
     return NextResponse.json(

@@ -38,6 +38,8 @@ export default function QrisPaymentScreen({
   const [loading, setLoading] = useState(true);
   const [paying, setPaying] = useState(false); // tombol simulasi demo
   const [error, setError] = useState<string | null>(null);
+  const [errorDetail, setErrorDetail] = useState<string | null>(null);
+  const [env, setEnv] = useState<string | null>(null);
   const startedRef = useRef(false);
 
   // 1) Muat order + buat/ambil QR (idempoten di server)
@@ -46,6 +48,12 @@ export default function QrisPaymentScreen({
     startedRef.current = true;
     (async () => {
       try {
+        // Info mode gateway (sandbox/produksi/demo) — tanpa kredensial
+        fetch("/api/payment/config")
+          .then((r) => r.json())
+          .then((d) => setEnv(d.environment ?? null))
+          .catch(() => {});
+
         const oRes = await fetch(`/api/orders/${orderId}`);
         const oData = await oRes.json();
         if (!oRes.ok) throw new Error(oData.error || "Pesanan tidak ditemukan");
@@ -57,10 +65,15 @@ export default function QrisPaymentScreen({
           body: JSON.stringify({ orderId }),
         });
         const pData = await pRes.json();
-        if (!pRes.ok) throw new Error(pData.error || "Gagal membuat QRIS");
+        if (!pRes.ok) {
+          const err = new Error(pData.error || "Gagal membuat QRIS") as Error & { detail?: string };
+          err.detail = pData.detail ?? null;
+          throw err;
+        }
         setPayment(pData.payment as PaymentInfo);
       } catch (e) {
         setError(e instanceof Error ? e.message : "Gagal menyiapkan QRIS");
+        setErrorDetail((e as Error & { detail?: string })?.detail ?? null);
       } finally {
         setLoading(false);
       }
@@ -94,6 +107,7 @@ export default function QrisPaymentScreen({
   const regenerate = useCallback(async () => {
     if (paying) return;
     setError(null);
+    setErrorDetail(null);
     setLoading(true);
     try {
       const pRes = await fetch("/api/payment/create", {
@@ -102,10 +116,15 @@ export default function QrisPaymentScreen({
         body: JSON.stringify({ orderId }),
       });
       const pData = await pRes.json();
-      if (!pRes.ok) throw new Error(pData.error || "Gagal membuat QR baru");
+      if (!pRes.ok) {
+        const err = new Error(pData.error || "Gagal membuat QR baru") as Error & { detail?: string };
+        err.detail = pData.detail ?? null;
+        throw err;
+      }
       setPayment(pData.payment as PaymentInfo);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal membuat QR baru");
+      setErrorDetail((e as Error & { detail?: string })?.detail ?? null);
     } finally {
       setLoading(false);
     }
@@ -158,6 +177,11 @@ export default function QrisPaymentScreen({
             <h1 className="text-lg font-extrabold text-white">Bayar via QRIS</h1>
             <p className="text-[11px] text-teal-50/90">
               {order ? order.store.name : "…"} · {order?.code}
+              {env === "sandbox" && (
+                <span className="ml-1.5 rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-extrabold text-white">
+                  SANDBOX
+                </span>
+              )}
             </p>
           </div>
         </div>
@@ -180,6 +204,11 @@ export default function QrisPaymentScreen({
           ) : error ? (
             <div className="flex h-72 flex-col items-center justify-center gap-3 rounded-2xl bg-red-50/60 p-4 text-center">
               <p className="text-xs font-bold text-red-500">{error}</p>
+              {errorDetail && (
+                <p className="max-w-full break-words rounded-lg bg-white/70 px-2 py-1 font-mono text-[9px] leading-snug text-slate-400">
+                  {errorDetail}
+                </p>
+              )}
               <Button
                 onClick={regenerate}
                 className="press h-10 rounded-xl bg-primary px-5 text-xs font-extrabold hover:bg-teal-700"
