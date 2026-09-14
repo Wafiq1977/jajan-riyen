@@ -28,13 +28,22 @@ export default function CartScreen({
 }: {
   user: User | null;
   onExplore: () => void;
-  onDone: (orderId: string) => void;
+  onDone: (orderId: string, method: PaymentMethod) => void;
 }) {
   const { items, storeId, storeName, setQuantity, removeItem } = useCartStore();
   const [method, setMethod] = useState<PaymentMethod>("TUNAI");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [store, setStore] = useState<Store | null>(null);
+  const [gateway, setGateway] = useState<"midtrans" | "demo" | null>(null);
+
+  // Mode pembayaran QRIS platform (tanpa kredensial — hanya nama mode)
+  useEffect(() => {
+    fetch("/api/payment/config")
+      .then((r) => r.json())
+      .then((d) => setGateway(d.gateway ?? null))
+      .catch(() => {});
+  }, []);
 
   // Fetch toko keranjang — untuk cek QRIS penjual
   useEffect(() => {
@@ -52,7 +61,7 @@ export default function CartScreen({
     };
   }, [storeId]);
 
-  const qrisAvailable = Boolean(store?.qrisEnabled);
+  const qrisAvailable = Boolean(store?.qrisEnabled) || gateway !== null;
 
   const total = useMemo(() => cartTotalPrice(items), [items]);
   const qty = useMemo(() => cartTotalQty(items), [items]);
@@ -83,7 +92,7 @@ export default function CartScreen({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal membuat pesanan");
-      onDone(data.order.id as string);
+      onDone(data.order.id as string, method);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal membuat pesanan");
       setSubmitting(false);

@@ -49,3 +49,25 @@ export function statusLabel(status: string): string {
       return status;
   }
 }
+
+/** Label status pembayaran QRIS sesuai kebutuhan aplikasi */
+export function paymentStatusLabel(status: string): string {
+  switch (status) {
+    case "PENDING":
+      return "Menunggu Pembayaran";
+    case "PAID":
+      return "Pembayaran Berhasil";
+    case "EXPIRED":
+      return "Pembayaran Expired";
+    case "FAILED":
+      return "Pembayaran Gagal";
+    default:
+      return status;
+  }
+}
+
+/** Sisa detik menuju kedaluwarsa (ISO string) — min 0 */
+export function secondsLeft(iso: string | null | undefined): number {
+  if (!iso) return 0;
+  return Math.max(0, Math.floor((new Date(iso).getTime() - Date.now()) / 1000));
+}

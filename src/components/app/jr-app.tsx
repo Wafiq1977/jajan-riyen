@@ -17,6 +17,7 @@ import StoreScreen from "./screens/store-screen";
 import ProductScreen from "./screens/product-screen";
 import CheckoutScreen from "./screens/checkout-screen";
 import SuccessScreen from "./screens/success-screen";
+import QrisPaymentScreen from "./screens/qris-payment-screen";
 import FlashSaleScreen from "./screens/flash-sale-screen";
 import SellerFormScreen from "./screens/seller-form-screen";
 import SellerDashboardScreen from "./screens/seller-dashboard-screen";
@@ -35,6 +36,7 @@ export type Screen =
   | { name: "product"; productId: string; storeId: string }
   | { name: "checkout"; productId: string; storeId: string }
   | { name: "success"; orderId: string }
+  | { name: "qris-payment"; orderId: string }
   | { name: "seller-form" };
 
 const TAB_SCREENS: Screen["name"][] = ["home", "explore", "cart", "orders", "account"];
@@ -170,11 +172,13 @@ export default function JrApp() {
           <CartScreen
             user={user}
             onExplore={() => goTab({ name: "explore" })}
-            onDone={(orderId) => {
+            onDone={(orderId, method) => {
               historyRef.current = [];
               clearCart();
               bumpOrders();
-              setScreen({ name: "success", orderId });
+              setScreen(
+                method === "QRIS" ? { name: "qris-payment", orderId } : { name: "success", orderId }
+              );
               setDirection(1);
               window.scrollTo({ top: 0 });
             }}
@@ -187,6 +191,7 @@ export default function JrApp() {
             tick={orderTick}
             onOpenStore={(id) => push({ name: "store", storeId: id })}
             onTrack={(order) => setTrackOrder(order)}
+            onPayQris={(orderId) => push({ name: "qris-payment", orderId })}
           />
         );
       case "account":
@@ -248,10 +253,12 @@ export default function JrApp() {
             productId={screen.productId}
             storeId={screen.storeId}
             onBack={back}
-            onDone={(orderId) => {
+            onDone={(orderId, method) => {
               historyRef.current = [];
               bumpOrders();
-              setScreen({ name: "success", orderId });
+              setScreen(
+                method === "QRIS" ? { name: "qris-payment", orderId } : { name: "success", orderId }
+              );
               setDirection(1);
               window.scrollTo({ top: 0 });
             }}
@@ -262,6 +269,18 @@ export default function JrApp() {
           <SuccessScreen
             orderId={screen.orderId}
             onDone={() => {
+              goTab({ name: "orders" });
+              bumpOrders();
+            }}
+          />
+        );
+      case "qris-payment":
+        return (
+          <QrisPaymentScreen
+            orderId={screen.orderId}
+            onBack={back}
+            onDone={() => {
+              historyRef.current = [];
               goTab({ name: "orders" });
               bumpOrders();
             }}

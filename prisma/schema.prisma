@@ -77,6 +77,28 @@ model Order {
   status        String   @default("PENDING")
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
+  payments      Payment[]
+}
+
+model Payment {
+  id         String    @id @default(cuid())
+  orderId    String
+  order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  gateway    String // "midtrans" | "demo"
+  reference  String // ID transaksi di gateway (unik per attempt)
+  amount     Int
+  status     String    @default("PENDING") // PENDING | PAID | EXPIRED | FAILED
+  qrString   String? // payload QRIS mentah (audit)
+  qrImageUrl String? // gambar QR (data URL / URL gateway) untuk ditampilkan
+  payUrl     String? // halaman pembayaran gateway (opsional)
+  paidAt     DateTime?
+  expiresAt  DateTime?
+  rawPayload String? // payload webhook terakhir (JSON) untuk audit
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([orderId])
+  @@index([reference])
 }
 
 model OrderItem {

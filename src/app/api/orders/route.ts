@@ -34,6 +34,18 @@ export async function GET(req: NextRequest) {
         items: true,
         store: true,
         user: { select: { id: true, phone: true, name: true } },
+        payments: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            gateway: true,
+            amount: true,
+            status: true,
+            paidAt: true,
+            expiresAt: true,
+            createdAt: true,
+          },
+        },
       },
       orderBy: { createdAt: "desc" },
     });

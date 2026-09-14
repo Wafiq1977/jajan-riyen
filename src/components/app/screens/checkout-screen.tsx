@@ -28,14 +28,23 @@ export default function CheckoutScreen({
   productId: string;
   storeId: string;
   onBack: () => void;
-  onDone: (orderId: string) => void;
+  onDone: (orderId: string, method: PaymentMethod) => void;
 }) {
   const [product, setProduct] = useState<Product | null>(null);
   const [store, setStore] = useState<Store | null>(null);
   const [qty, setQty] = useState(1);
   const [method, setMethod] = useState<PaymentMethod>("TUNAI");
+  const [gateway, setGateway] = useState<"midtrans" | "demo" | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Mode pembayaran QRIS platform (tanpa kredensial — hanya nama mode)
+  useEffect(() => {
+    fetch("/api/payment/config")
+      .then((r) => r.json())
+      .then((d) => setGateway(d.gateway ?? null))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -78,7 +87,7 @@ export default function CheckoutScreen({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Gagal membuat pesanan");
-      onDone(data.order.id as string);
+      onDone(data.order.id as string, method);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Gagal membuat pesanan");
       setSubmitting(false);
@@ -87,6 +96,10 @@ export default function CheckoutScreen({
 
   const maxQty = product ? Math.min(product.stock, 10) : 10;
   const pct = product ? discountPercent(product.price, product.originalPrice) : null;
+
+  // QRIS dinamis (gateway/demo) tersedia untuk semua toko; QR statis toko tetap dihormati
+  const qrisDynamic = gateway !== null;
+  const qrisAvailable = qrisDynamic || !!store?.qrisEnabled;
 
   return (
     <div className="pb-32">
@@ -188,22 +201,30 @@ export default function CheckoutScreen({
           />
           <MethodCard
             active={method === "QRIS"}
-            onClick={() => store?.qrisEnabled && setMethod("QRIS")}
-            disabled={!!store && !store.qrisEnabled}
+            onClick={() => qrisAvailable && setMethod("QRIS")}
+            disabled={!qrisAvailable}
             icon={<QrCode className="h-6 w-6" />}
             title="QRIS"
-            subtitle={store && !store.qrisEnabled ? "Penjual belum aktifkan" : "Scan & bayar"}
+            subtitle={
+              !qrisAvailable
+                ? "Penjual belum aktifkan"
+                : gateway === "midtrans"
+                  ? "Scan otomatis"
+                  : gateway === "demo"
+                    ? "Scan & bayar (demo)"
+                    : "Scan & bayar"
+            }
           />
         </div>
 
-        {store && !store.qrisEnabled && (
+        {store && !qrisAvailable && (
           <p className="mt-2 flex items-center gap-1.5 text-[10px] font-semibold text-slate-400">
             <QrCode className="h-3 w-3" />
             {store.name} belum mengaktifkan pembayaran QRIS — silakan pilih Tunai.
           </p>
         )}
 
-        {method === "QRIS" && product && store && (
+        {method === "QRIS" && product && store && !qrisDynamic && (
           <QrisPanel
             merchantName={store.name}
             merchantId={store.id}
@@ -211,6 +232,22 @@ export default function CheckoutScreen({
             amount={total}
             sellerQris={store.qrisEnabled ? { imageUrl: store.qrisImageUrl, code: store.qrisCode } : null}
           />
+        )}
+
+        {method === "QRIS" && qrisDynamic && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="mt-3 flex items-start gap-2.5 rounded-2xl bg-teal-50/70 p-3.5 text-[11px] font-medium leading-relaxed text-teal-800"
+          >
+            <QrCode className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+            Setelah pesanan dibuat, kode <b>QRIS sesuai total</b> tampil otomatis. Status
+            pembayaran terkonfirmasi langsung oleh payment gateway (webhook) — tanpa
+            konfirmasi manual.
+            {gateway === "demo" && (
+              <b className="ml-1 text-violet-500">(Mode demo — tanpa gateway)</b>
+            )}
+          </motion.div>
         )}
 
         {method === "TUNAI" && (

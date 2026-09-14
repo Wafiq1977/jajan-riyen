@@ -11,7 +11,23 @@ export async function GET(
     const { id } = await params;
     const order = await db.order.findUnique({
       where: { id },
-      include: { items: true, store: true, user: { select: { id: true, phone: true, name: true } } },
+      include: {
+        items: true,
+        store: true,
+        user: { select: { id: true, phone: true, name: true } },
+        payments: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            gateway: true,
+            amount: true,
+            status: true,
+            paidAt: true,
+            expiresAt: true,
+            createdAt: true,
+          },
+        },
+      },
     });
     if (!order) {
       return NextResponse.json({ error: "Pesanan tidak ditemukan" }, { status: 404 });

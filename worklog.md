@@ -413,3 +413,26 @@ Stage Summary:
 - Akar masalah BUKAN kode aplikasi tapi prisma generate yang tidak jalan saat build Vercel (client stale) - kini deterministik via build script
 - Kualitas gambar otomatis: resize maks 1280px + WebP q82 (1.1MB -> 107KB, hemat kuota Neon ~90%)
 - Batas ukuran upload: 4 MB (aman di bawah limit body request serverless Vercel 4,5MB)
+
+---
+Task ID: 20
+Agent: main (Z.ai Code)
+Task: Fitur pembayaran QRIS dinamis via payment gateway (Midtrans) + webhook validation
+
+Work Log:
+- Eksplorasi flow order/checkout yang ada (status PENDING/PROCESSING/COMPLETED/CANCELLED, QrisPanel statis toko) - desain dipertahankan
+- Schema: model Payment (orderId FK, gateway, reference unik per attempt, amount, status, qrString, qrImageUrl, payUrl, paidAt, expiresAt, rawPayload audit) -> db:push Neon sukses
+- src/lib/payment.ts: Midtrans Core API QRIS (/v2/charge, acquirer gopay, custom_expiry), verifyMidtransSignature sha512(order_id+status_code+gross_amount+serverKey) timing-safe, mapMidtransStatus, demo QR lokal via qrcode.toDataURL; SEMUA kredensial server-side saja
+- API baru: POST /api/payment/create (idempoten, anti double-charge, auto-expire), GET /api/payment/[id] (polling + expired lokal), POST /api/payment/webhook (validasi signature+nominal, transisi anti-regresi, idempoten, rawPayload audit), POST /api/payment/demo-simulate (404 otomatis saat kredensial asli terpasang), GET /api/payment/config (mode tanpa kredensial)
+- API orders (GET list & [id]) kini include payments (field aman)
+- UI: layar baru qris-payment-screen (QR sesuai total, countdown, polling 3s, status bar Menunggu/Berhasil/Expired, panel sukses, instruksi scan, tombol simulasi demo); checkout & cart deteksi mode QRIS via /api/payment/config; navigasi onDone(orderId, method) -> layar QRIS saat pilih QRIS; daftar pesanan: chip status riil (ganti "QRIS terbayar" yang naif) + tombol Bayar QRIS; dashboard penjual: chip status pembayaran
+- Uji API E2E sandbox: create (demo PENDING 18000, QR data-URL, expiry 15m) -> idempoten -> demo-simulate -> PAID+paidAt -> orders API menampilkan payment -> create setelah PAID tidak charge ulang -> expired otomatis + QR baru -> webhook palsu 403
+- Unit test signature: benar diterima, salah/kosong ditolak; mapMidtransStatus settlement/capture/expire/deny benar
+- Uji UI E2E agent-browser (OTP devMode): login -> produk -> Beli -> pilih QRIS (label demo) -> Buat Pesanan -> layar QRIS (QR+countdown+Menunggu Pembayaran) -> Simulasi -> "Pembayaran Berhasil" -> Pesanan: chip Pembayaran Berhasil. Screenshot: tool-results/qris-menunggu.png, qris-berhasil.png, qris-orders.png
+- Cleanup data uji (3 order+payment cascade, kode OTP); pulihkan .env (FONNTE_TOKEN & OTP_SALT yang hilang) + server fonnte aktif
+- Dokumen: PANDUAN-MIDTRANS.md (daftar, server key, env Vercel, URL webhook, simulasi sandbox, keamanan, troubleshooting); .env.example + MIDTRANS vars
+
+Stage Summary:
+- QRIS dinamis berfungsi penuh: validasi OTOMATIS via webhook gateway (bukan klaim pembeli), status "Menunggu Pembayaran"/"Pembayaran Berhasil"/"Pembayaran Expired" sesuai kebutuhan
+- Mode DEMO aktif tanpa konfigurasi (sandbox & Vercel sekarang); mode MIDTRANS asli menyala begitu MIDTRANS_SERVER_KEY di-set di Vercel + URL webhook didaftarkan (PANDUAN-MIDTRANS.md langkah 3-4)
+- Desain & fitur lama utuh: QRIS statis toko tetap jadi fallback, TUNAI tidak berubah, barcode/lacak tetap jalan

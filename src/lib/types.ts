@@ -1,5 +1,20 @@
 export type OrderStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "CANCELLED";
 export type PaymentMethod = "TUNAI" | "QRIS";
+export type PaymentStatus = "PENDING" | "PAID" | "EXPIRED" | "FAILED";
+
+/** Data pembayaran QRIS yang aman tampil di frontend */
+export interface PaymentInfo {
+  id: string;
+  orderId: string;
+  gateway: string; // "midtrans" | "demo"
+  amount: number;
+  status: PaymentStatus;
+  qrImageUrl?: string | null;
+  payUrl?: string | null;
+  paidAt: string | null;
+  expiresAt: string | null;
+  createdAt: string;
+}
 
 export interface Product {
   id: string;
@@ -73,6 +88,7 @@ export interface Order {
   updatedAt?: string;
   store: Store;
   user?: { id: string; phone: string; name: string | null };
+  payments?: PaymentInfo[];
 }
 
 /** Item inside the buyer cart (client-side only) */

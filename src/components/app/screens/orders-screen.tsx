@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { RefreshCw, ReceiptText, QrCode } from "lucide-react";
 import type { Order, OrderStatus, User } from "@/lib/types";
-import { formatRupiah, formatDateTime } from "@/lib/format";
+import { formatRupiah, formatDateTime, paymentStatusLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import {
   StatusBadge,
@@ -26,11 +26,13 @@ export default function OrdersScreen({
   tick,
   onOpenStore,
   onTrack,
+  onPayQris,
 }: {
   user: User | null;
   tick: number;
   onOpenStore: (storeId: string) => void;
   onTrack: (order: Order) => void;
+  onPayQris?: (orderId: string) => void;
 }) {
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("ALL");
@@ -227,9 +229,41 @@ export default function OrdersScreen({
                       )}
                     </div>
                   </div>
-                  {order.status === "PENDING" && order.paymentMethod === "QRIS" && (
-                    <p className="mt-2 text-right text-[9px] font-bold text-violet-400">✓ QRIS terbayar</p>
-                  )}
+                  {order.paymentMethod === "QRIS" && (() => {
+                    const p = order.payments?.[0];
+                    if (!p) {
+                      return (
+                        <p className="mt-2 text-right text-[9px] font-bold text-violet-400">
+                          QRIS belum dibayar
+                        </p>
+                      );
+                    }
+                    return (
+                      <div className="mt-2 flex items-center justify-end gap-2">
+                        <span
+                          className={cn(
+                            "rounded-full px-2 py-0.5 text-[9px] font-extrabold",
+                            p.status === "PAID" && "bg-emerald-50 text-emerald-600",
+                            p.status === "PENDING" && "bg-amber-50 text-amber-600",
+                            (p.status === "EXPIRED" || p.status === "FAILED") &&
+                              "bg-red-50 text-red-500"
+                          )}
+                        >
+                          {paymentStatusLabel(p.status)}
+                        </span>
+                        {(p.status === "PENDING" || p.status === "EXPIRED") &&
+                          order.status === "PENDING" &&
+                          onPayQris && (
+                            <button
+                              onClick={() => onPayQris(order.id)}
+                              className="press rounded-full bg-primary px-3 py-1 text-[9px] font-extrabold text-white shadow-sm hover:bg-teal-700"
+                            >
+                              Bayar QRIS
+                            </button>
+                          )}
+                      </div>
+                    );
+                  })()}
                 </div>
               </motion.div>
             ))}

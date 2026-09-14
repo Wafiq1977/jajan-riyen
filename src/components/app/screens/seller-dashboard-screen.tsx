@@ -44,7 +44,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import type { Order, Product, Store, User } from "@/lib/types";
-import { formatRupiah, formatRupiahCompact, formatDateTime, maskPhone, discountPercent } from "@/lib/format";
+import { formatRupiah, formatRupiahCompact, formatDateTime, maskPhone, discountPercent, paymentStatusLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { StatusBadge, PaymentBadge, EmptyState, SkeletonList, Stars } from "../shared";
 import { ImageUploader } from "../upload";
@@ -302,8 +302,26 @@ export default function SellerDashboardScreen({
                   </div>
 
                   <div className="mt-2.5 flex items-center justify-between">
-                    <div className="flex items-center gap-1.5">
+                    <div className="flex flex-wrap items-center gap-1.5">
                       <PaymentBadge method={order.paymentMethod} />
+                      {order.paymentMethod === "QRIS" &&
+                        (() => {
+                          const p = order.payments?.[0];
+                          if (!p) return null;
+                          return (
+                            <span
+                              className={cn(
+                                "rounded-full px-2 py-0.5 text-[9px] font-extrabold",
+                                p.status === "PAID" && "bg-emerald-50 text-emerald-600",
+                                p.status === "PENDING" && "bg-amber-50 text-amber-600",
+                                (p.status === "EXPIRED" || p.status === "FAILED") &&
+                                  "bg-red-50 text-red-500"
+                              )}
+                            >
+                              {paymentStatusLabel(p.status)}
+                            </span>
+                          );
+                        })()}
                       <span className="text-[9px] font-semibold text-slate-400">
                         {maskPhone(order.user?.phone ?? "-")} · {formatDateTime(order.createdAt)}
                       </span>
