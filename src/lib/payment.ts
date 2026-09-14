@@ -15,12 +15,22 @@ import QRCode from "qrcode";
  * SEMUA kredensial hanya dibaca di server (API routes) — tidak pernah terkirim ke frontend.
  */
 
-export const SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || "";
-// Key sandbox Midtrans selalu berprefix "SB-" (SB-Midtrans-server-… lama / SB-Mid-server-… baru).
-// Key tanpa SB- (Mid-server-…) = produksi.
-export const IS_PRODUCTION =
-  process.env.MIDTRANS_IS_PRODUCTION === "true" ||
-  (!!SERVER_KEY && !SERVER_KEY.startsWith("SB-"));
+export const SERVER_KEY = (process.env.MIDTRANS_SERVER_KEY || "").trim();
+
+/**
+ * Deteksi lingkungan gateway:
+ * 1. MIDTRANS_IS_PRODUCTION="true"/"false" → override EKSPLISIT (paling andal).
+ *    WAJIB untuk key sandbox akun Midtrans BARU yang TIDAK berprefix "SB-"
+ *    (formatnya "Mid-server-…" — identik dengan key produksi, tidak bisa dibedakan).
+ * 2. Tanpa env → heuristik prefix klasik: "SB-" = sandbox; selain itu = produksi.
+ */
+function resolveIsProduction(): boolean {
+  const envFlag = (process.env.MIDTRANS_IS_PRODUCTION || "").trim().toLowerCase();
+  if (envFlag === "true") return true;
+  if (envFlag === "false") return false;
+  return !!SERVER_KEY && !SERVER_KEY.startsWith("SB-");
+}
+export const IS_PRODUCTION = resolveIsProduction();
 
 /** Menit berlaku QRIS sebelum expired */
 export const EXPIRY_MINUTES = Math.max(
@@ -47,9 +57,80 @@ export interface QrisChargeResult {
   expiresAt: Date;
 }
 
+/** Respons charge Midtrans (subset field yang dipakai) */
+interface ChargeData {
+  status_code?: string;
+  status_message?: string;
+  qr_string?: string;
+  redirect_url?: string;
+  expiry_time?: string;
+  actions?: { name?: string; url?: string }[];
+  validation_messages?: string[];
+}
+
+/** Panggil Core API /v2/charge dan parse responsnya */
+async function midtransCharge(body: Record<string, unknown>): Promise<{
+  ok: boolean;
+  httpStatus: number;
+  data: ChargeData;
+}> {
+  const res = await fetch(`${API_BASE}/v2/charge`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      Authorization: authHeader(),
+    },
+    body: JSON.stringify(body),
+  });
+  const data = (await res.json().catch(() => ({}))) as ChargeData;
+  const ok = res.ok && (!data.status_code || ["201", "200"].includes(data.status_code));
+  return { ok, httpStatus: res.status, data };
+}
+
+function chargeErrorMessage(data: ChargeData, httpStatus: number): string {
+  return `Midtrans: ${
+    data.status_message || data.validation_messages?.join(", ") || `HTTP ${httpStatus}`
+  }`;
+}
+
+/** Susun hasil charge sukses (QR data-URL, expiry, dsb.) */
+async function buildChargeResult(
+  reference: string,
+  data: ChargeData
+): Promise<QrisChargeResult> {
+  const qrAction = data.actions?.find((a) => a.name === "generate-qr-code")?.url ?? null;
+
+  // expiresAt: pakai waktu dari gateway bila ada, kalau tidak hitung sendiri
+  const expiresAt = data.expiry_time
+    ? new Date(data.expiry_time)
+    : new Date(Date.now() + EXPIRY_MINUTES * 60 * 1000);
+
+  let qrImageUrl: string | null = qrAction;
+  if (data.qr_string) {
+    try {
+      qrImageUrl = await QRCode.toDataURL(data.qr_string, { width: 512, margin: 1 });
+    } catch {
+      qrImageUrl = qrAction;
+    }
+  }
+
+  return {
+    reference,
+    qrString: data.qr_string ?? null,
+    qrImageUrl,
+    payUrl: data.redirect_url ?? null,
+    expiresAt,
+  };
+}
+
 /**
  * Buat transaksi QRIS di Midtrans (Core API /v2/charge).
  * amount dalam rupiah (integer). Melempar Error bila gateway menolak.
+ *
+ * Resiliensi: channel "QRIS" dan "GoPay" di dashboard Midtrans sering menjadi
+ * toggle terpisah — bila salah satu belum aktif, otomatis dicoba pasangannya
+ * (payment_type gopay juga menghasilkan QRIS QR yang sama + qr_string).
  */
 export async function createMidtransQris(opts: {
   reference: string;
@@ -57,9 +138,7 @@ export async function createMidtransQris(opts: {
   customerName?: string;
   itemName?: string;
 }): Promise<QrisChargeResult> {
-  const body = {
-    payment_type: "qris",
-    qris: { acquirer: "gopay" },
+  const common = {
     transaction_details: {
       order_id: opts.reference,
       gross_amount: opts.amount,
@@ -78,55 +157,30 @@ export async function createMidtransQris(opts: {
       : undefined,
   };
 
-  const res = await fetch(`${API_BASE}/v2/charge`, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: authHeader(),
-    },
-    body: JSON.stringify(body),
+  const attemptQris = await midtransCharge({
+    payment_type: "qris",
+    qris: { acquirer: "gopay" },
+    ...common,
   });
 
-  const data = (await res.json().catch(() => ({}))) as {
-    status_code?: string;
-    status_message?: string;
-    qr_string?: string;
-    redirect_url?: string;
-    expiry_time?: string;
-    actions?: { name?: string; url?: string }[];
-    validation_messages?: string[];
-  };
+  if (attemptQris.ok) return buildChargeResult(opts.reference, attemptQris.data);
 
-  if (!res.ok || (data.status_code && !["201", "200"].includes(data.status_code))) {
-    throw new Error(
-      `Midtrans: ${data.status_message || data.validation_messages?.join(", ") || `HTTP ${res.status}`}`
-    );
-  }
-
-  const qrAction = data.actions?.find((a) => a.name === "generate-qr-code")?.url ?? null;
-
-  // expiresAt: pakai waktu dari gateway bila ada, kalau tidak hitung sendiri
-  const expiresAt = data.expiry_time
-    ? new Date(data.expiry_time)
-    : new Date(Date.now() + EXPIRY_MINUTES * 60 * 1000);
-
-  let qrImageUrl: string | null = qrAction;
-  if (data.qr_string) {
-    try {
-      qrImageUrl = await QRCode.toDataURL(data.qr_string, { width: 512, margin: 1 });
-    } catch {
-      qrImageUrl = qrAction;
+  // Bila channel QRIS nonaktif, coba channel GoPay (hasil QR sama)
+  if (/not activated/i.test(attemptQris.data.status_message || "")) {
+    const attemptGopay = await midtransCharge({
+      payment_type: "gopay",
+      gopay: { enable_callback: false },
+      ...common,
+    });
+    if (attemptGopay.ok) return buildChargeResult(opts.reference, attemptGopay.data);
+    if (/not activated/i.test(attemptGopay.data.status_message || "")) {
+      // Keduanya nonaktif — pesan tunggal yang jelas (tetap cocok regex "not activated")
+      throw new Error("Midtrans: Payment channel is not activated (QRIS & GoPay).");
     }
+    throw new Error(chargeErrorMessage(attemptGopay.data, attemptGopay.httpStatus));
   }
 
-  return {
-    reference: opts.reference,
-    qrString: data.qr_string ?? null,
-    qrImageUrl,
-    payUrl: data.redirect_url ?? null,
-    expiresAt,
-  };
+  throw new Error(chargeErrorMessage(attemptQris.data, attemptQris.httpStatus));
 }
 
 /** Buat QR mode demo (lokal, tanpa gateway) */

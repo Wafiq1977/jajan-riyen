@@ -4,6 +4,7 @@ import {
   createDemoQris,
   createMidtransQris,
   gatewayActive,
+  IS_PRODUCTION,
   makeReference,
 } from "@/lib/payment";
 
@@ -114,14 +115,20 @@ export async function POST(req: NextRequest) {
     // Pesan ramah untuk kondisi gateway yang umum
     let error = "Gagal membuat QRIS. Coba lagi beberapa saat.";
     if (/not activated/i.test(detail)) {
+      const dash = IS_PRODUCTION
+        ? "https://dashboard.midtrans.com"
+        : "https://dashboard.sandbox.midtrans.com";
       error =
-        "QRIS otomatis belum aktif: channel pembayaran QRIS/GoPay belum diaktifkan di akun Midtrans. " +
-        "Aktifkan di Dashboard Midtrans → Settings → Payment Methods, atau gunakan metode TUNAI sementara.";
+        `Channel pembayaran QRIS/GoPay belum diaktifkan di akun Midtrans ` +
+        `${IS_PRODUCTION ? "PRODUKSI" : "SANDBOX"}. Buka ${dash} → Settings → ` +
+        `Payment Methods → aktifkan QRIS/GoPay, lalu coba lagi. Sementara, ` +
+        `metode TUNAI tetap bisa dipakai.`;
     } else if (/unknown merchant|server_key|wrong server key|unauthor|401|access denied/i.test(detail)) {
       error =
-        "Server Key tidak dikenali gateway. Pastikan yang diset adalah SERVER KEY (bukan Client Key) " +
-        "tanpa spasi — key sandbox diawali 'SB-', key produksi 'Mid-server-' — dan jangan mengisi " +
-        "MIDTRANS_IS_PRODUCTION kecuali bersama key produksi. Setelah mengubah env di Vercel, wajib Redeploy.";
+        "Server Key tidak dikenali gateway (401). Penyebab umum: (1) key sandbox akun Midtrans " +
+        "baru TIDAK berprefix 'SB-' sehingga wajib set MIDTRANS_IS_PRODUCTION=false agar dipakai " +
+        "ke sandbox; (2) key produksi/sandbox tertukar antar lingkungan; (3) spasi/salah salin key. " +
+        "Setelah mengubah env di Vercel, wajib Redeploy.";
     }
 
     return NextResponse.json(
