@@ -460,3 +460,20 @@ Stage Summary:
 - Satu-satunya yang menghalangi QRIS asli: aktivasi channel QRIS/GoPay di dashboard Midtrans oleh user (langkah lengkap di PANDUAN-MIDTRANS.md) + set MIDTRANS_SERVER_KEY di Vercel + daftarkan webhook URL
 - Bug webhook 500 (reference non-unique) ditemukan & diperbaiki sebelum pernah kena produksi; 5 skenario webhook lulus dgn key asli
 - Fallback polling menjamin pembayaran tetap terdeteksi walau webhook belum terdaftar
+
+---
+Task ID: 20-c
+Agent: main (Z.ai Code)
+Task: Diagnosa "Gagal membuat QRIS" di Vercel (user coba pasang key sendiri)
+
+Work Log:
+- Reproduksi via API produksi: POST /api/payment/create di Vercel -> {"error":"Gagal membuat QRIS...","detail":"Midtrans: Unknown Merchant server_key/id"}
+- Faktor: user sudah set MIDTRANS_SERVER_KEY di Vercel (mode berubah demo->midtrans, deploy sukses) tetapi NILAI key ditolak Midtrans produksi
+- Bukti pembanding: key yang user kirim via chat (Mid-server-dw70Jx...9) MASIH valid ke api.midtrans.com (404 Transaction doesn't exist = auth OK) -> nilai di Vercel BERBEDA dari itu (kemungkinan Client Key Mid-client-... (juga format produksi), typo, spasi, atau key lain)
+- Perbaikan diagnostik: /api/payment/config kini mengirim environment ("production"/"sandbox"/null) tanpa kredensial; create route memetakan "Unknown Merchant server_key/id" -> pesan ramah (SERVER KEY bukan Client Key, tanpa spasi, SB-=sandbox, jangan set MIDTRANS_IS_PRODUCTION kecuali key produksi, wajib Redeploy); layar QRIS menampilkan badge SANDBOX di header + detail error (font kecil) di panel error; checkout subtitle "Scan otomatis (Sandbox)" saat sandbox
+- Verifikasi: lint bersih; config lokal {"gateway":"midtrans","environment":"production"}; setelah push, Vercel menampilkan pesan ramah + detail Unknown Merchant; deploy terkonfirmasi via polling config
+- Cleanup data diag (user+order cascade, stok +1, 0 sisa payment)
+
+Stage Summary:
+- Aplikasi kini mendiagnosis sendiri masalah key: badge mode (sandbox/produksi) di layar QRIS + pesan error yang menuntun perbaikan env Vercel
+- Tindakan user: ganti nilai MIDTRANS_SERVER_KEY di Vercel dgn Server Key yang benar (Mid-server-*** (disensor, lihat .env/Vercel)), hapus MIDTRANS_IS_PRODUCTION, Redeploy; untuk uji sandbox: pakai SB-Mid-server-... dari dashboard.sandbox.midtrans.com + daftarkan webhook di dashboard sandbox
