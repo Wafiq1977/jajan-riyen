@@ -436,3 +436,27 @@ Stage Summary:
 - QRIS dinamis berfungsi penuh: validasi OTOMATIS via webhook gateway (bukan klaim pembeli), status "Menunggu Pembayaran"/"Pembayaran Berhasil"/"Pembayaran Expired" sesuai kebutuhan
 - Mode DEMO aktif tanpa konfigurasi (sandbox & Vercel sekarang); mode MIDTRANS asli menyala begitu MIDTRANS_SERVER_KEY di-set di Vercel + URL webhook didaftarkan (PANDUAN-MIDTRANS.md langkah 3-4)
 - Desain & fitur lama utuh: QRIS statis toko tetap jadi fallback, TUNAI tidak berubah, barcode/lacak tetap jalan
+
+---
+Task ID: 20-b
+Agent: main (Z.ai Code)
+Task: Aktivasi kredensial Midtrans asli (server key dari user) + fix bug webhook + hardening
+
+Work Log:
+- User kirim server key `Mid-server-...` → verifikasi ke API: SANDBOX 401 (Unknown Merchant), PRODUKSI 200 (auth valid) → key ini PRODUKSI valid
+- .env sandbox dipulihkan lengkap: DATABASE_URL Neon + FONNTE_TOKEN + OTP_SALT + MIDTRANS_SERVER_KEY (produksi, gitignored)
+- Fix bug: IS_PRODUCTION hanya cek prefix `SB-Midtrans-server-` → kini `SB-` (mencakup format baru `SB-Mid-server-`); key tanpa SB- otomatis produksi (tak perlu env flag)
+- Fitur baru: fallback status-check — GET /api/payment/[id] saat PENDING+midtrans kini cek status ke API Midtrans (throttle in-memory 4 detik/transaksi) agar pembayaran tetap terdeteksi walau webhook belum/gagal terkirim (tetap server-to-server, bukan klaim pembeli)
+- FIX BUG KRITIS: webhook route pakai findUnique pada `reference` yang TIDAK unik di schema → PrismaClientValidationError → 500 pada webhook valid. Fix: `reference String @unique` di schema → db:push ke Neon (cek duplikat dulu: bersih) + pre-check collision di create route sebelum charge (hindari transaksi yatim di gateway)
+- Tes charge QRIS ke Midtrans PRODUKSI: auth lolos, tetapi ditolak "Payment channel is not activated" → channel QRIS/GoPay belum diaktifkan di akun Midtrans user (hanya user bisa mengaktifkan via dashboard). Error mapping baru: pesan ramah Indonesian utk "not activated" & "wrong server key"
+- Uji webhook 5 skenario dgn key asli (payload ber-signature sha512 buatan sendiri, persis format Midtrans): settlement valid → PAID+paidAt+rawPayload ✅; expire valid → EXPIRED ✅; signature palsu → 403 ✅; nominal beda → ignored (tidak PAID) ✅; settlement ulang → idempoten ✅
+- Uji fallback polling: payment PENDING dgn ref tak ada di gateway → status API produksi dicek → aman tetap PENDING (tanpa crash)
+- Uji UI agent-browser (OTP devMode): login → checkout → pilih QRIS ("Scan otomatis", tanpa label demo) → Buat Pesanan → layar QRIS menampilkan pesan aktivasi jelas + Coba Lagi; alur TUNAI sukses "Pesanan Berhasil"; layar Pesanan chip status+QRIS+tombol Bayar QRIS normal. Screenshot: tool-results/qris-channel-belum-aktif.png, qris-orders-chip.png
+- Cleanup data uji (user uji cascade order/payment, 3 stok dipulihkan, kode OTP dihapus — 0 sisa payment); server sandbox dipulihkan dgn Fonnte WA aktif
+- PANDUAN-MIDTRANS.md: bagian "STATUS SAAT INI" (channel belum aktif + langkah aktivasi dashboard), deteksi prefix otomatis, keamanan+troubleshooting diperbarui
+
+Stage Summary:
+- Kredensial Midtrans PRODUKSI valid & terpasang di sandbox; mode demo mati otomatis, simulasi 404
+- Satu-satunya yang menghalangi QRIS asli: aktivasi channel QRIS/GoPay di dashboard Midtrans oleh user (langkah lengkap di PANDUAN-MIDTRANS.md) + set MIDTRANS_SERVER_KEY di Vercel + daftarkan webhook URL
+- Bug webhook 500 (reference non-unique) ditemukan & diperbaiki sebelum pernah kena produksi; 5 skenario webhook lulus dgn key asli
+- Fallback polling menjamin pembayaran tetap terdeteksi walau webhook belum terdaftar

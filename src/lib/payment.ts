@@ -16,9 +16,11 @@ import QRCode from "qrcode";
  */
 
 export const SERVER_KEY = process.env.MIDTRANS_SERVER_KEY || "";
+// Key sandbox Midtrans selalu berprefix "SB-" (SB-Midtrans-server-… lama / SB-Mid-server-… baru).
+// Key tanpa SB- (Mid-server-…) = produksi.
 export const IS_PRODUCTION =
   process.env.MIDTRANS_IS_PRODUCTION === "true" ||
-  (!!SERVER_KEY && !SERVER_KEY.startsWith("SB-Midtrans-server-"));
+  (!!SERVER_KEY && !SERVER_KEY.startsWith("SB-"));
 
 /** Menit berlaku QRIS sebelum expired */
 export const EXPIRY_MINUTES = Math.max(
@@ -154,6 +156,37 @@ export function verifyMidtransSignature(
   const a = Buffer.from(expected);
   const b = Buffer.from(signatureKey);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+/**
+ * Cek status transaksi langsung ke API Midtrans (server-to-server).
+ * Dipakai route polling sebagai PENGAMAN bila webhook belum/gagal terkirim —
+ * hasil tetap berbasis gateway, bukan klaim pembeli.
+ */
+export async function fetchMidtransStatus(
+  reference: string
+): Promise<{ transactionStatus: string; fraudStatus?: string; grossAmount?: string } | null> {
+  if (!SERVER_KEY) return null;
+  try {
+    const res = await fetch(`${API_BASE}/v2/${encodeURIComponent(reference)}/status`, {
+      headers: { Accept: "application/json", Authorization: authHeader() },
+      cache: "no-store",
+    });
+    if (!res.ok) return null;
+    const data = (await res.json()) as {
+      transaction_status?: string;
+      fraud_status?: string;
+      gross_amount?: string;
+    };
+    if (!data.transaction_status) return null;
+    return {
+      transactionStatus: data.transaction_status,
+      fraudStatus: data.fraud_status,
+      grossAmount: data.gross_amount,
+    };
+  } catch {
+    return null;
+  }
 }
 
 /** Reference unik per attempt: JR-XXXXXXXX-xxxx */

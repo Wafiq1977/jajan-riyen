@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Signature tidak valid" }, { status: 403 });
     }
 
-    // 2. Cari transaksiinternal berdasarkan reference = order_id Midtrans
+    // 2. Cari transaksi internal berdasarkan reference = order_id Midtrans
     const payment = await db.payment.findUnique({
       where: { reference: payload.order_id },
       include: { order: { select: { totalPrice: true } } },

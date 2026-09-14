@@ -4,6 +4,33 @@ Pembayaran QRIS dinamis sudah **terpasang lengkap** di aplikasi: buyer checkout 
 sesuai total tampil → buyer scan & bayar → **payment gateway mengirim webhook** → status
 pesanan berubah otomatis menjadi **"Pembayaran Berhasil"**.
 
+## ⚡ STATUS SAAT INI (wajib dibaca)
+
+**Server Key PRODUKSI sudah terverifikasi valid** (auth Midtrans produksi sukses),
+tetapi saat charge QRIS masih ditolak Midtrans dengan:
+
+> `Midtrans: Payment channel is not activated.`
+
+Artinya akun Midtrans produksi user **belum mengaktifkan channel pembayaran QRIS/GoPay**.
+Sampai itu selesai:
+- Pembeli yang memilih QRIS melihat pesan jelas: *"QRIS otomatis belum aktif: channel
+  pembayaran QRIS/GoPay belum diaktifkan di akun Midtrans..."* + tombol coba lagi.
+- Metode **TUNAI tetap berfungsi normal**, dan QRIS statis toko tetap tersedia.
+
+**Cara mengaktifkan QRIS di Midtrans (dikerjakan user):**
+1. Buka https://dashboard.midtrans.com → pastikan akun **sudah aktivasi penuh**
+   (verifikasi data usaha: KTP/NPWP/rekening — lihat menu *Activation*).
+2. **Settings → Payment Methods** → cari **GoPay / QRIS** → klik **Activate**
+   (ada formulir singkat; GoPay kadang perlu persetujuan khusus).
+3. **Settings → Configuration → Payment Notification URL** → isi
+   `https://jajan-riyen.vercel.app/api/payment/webhook` (lihat langkah 4 di bawah).
+4. Set `MIDTRANS_SERVER_KEY` di Vercel (langkah 3 di bawah) → Redeploy.
+5. Selesai — QRIS dinamis langsung menyala TANPA ubah kode. Coba buat pesanan QRIS:
+   QR asli tampil, scan, status berubah otomatis via webhook.
+
+> Key produksi diawali `Mid-server-`, sandbox `SB-Mid-server-`/`SB-Midtrans-server-` —
+> aplikasi mendeteksi otomatis dari prefix (tidak perlu set `MIDTRANS_IS_PRODUCTION`).
+
 ## Dua mode (otomatis, tanpa ubah kode)
 
 | Mode | Kapan aktif | Cara bayar | Validasi |
@@ -22,16 +49,18 @@ pesanan berubah otomatis menjadi **"Pembayaran Berhasil"**.
 - Produksi (uang beneran; perlu verifikasi identitas/usaha): https://dashboard.midtrans.com
 
 ### 2. Ambil Server Key
-Dashboard → **Settings → Access Keys** → salin **Server Key**
-(sandbox diawali `SB-Midtrans-server-...`).
+Dashboard → **Settings → Access Keys** → salin **Server Key**.
+(produksi `Mid-server-...`, sandbox `SB-Mid-server-...`).
+
+> ✅ Sudah dilakukan: Server Key produksi tersimpan di sandbox & tinggal diset di Vercel.
 
 ### 3. Pasang di Vercel
 Project `jajan-riyen` → **Settings → Environment Variables** → tambahkan:
 
 | Name | Value |
 |---|---|
-| `MIDTRANS_SERVER_KEY` | (Server Key dari langkah 2) |
-| `MIDTRANS_IS_PRODUCTION` | `true` (hanya jika pakai kunci produksi; sandbox dikosongkan) |
+| `MIDTRANS_SERVER_KEY` | (Server Key dari langkah 2 — sama seperti di sandbox) |
+| `MIDTRANS_IS_PRODUCTION` | tidak perlu (terdeteksi otomatis dari prefix key) |
 | `PAYMENT_EXPIRY_MINUTES` | `15` (opsional) |
 
 → **Redeploy** (Deployments → terbaru → Redeploy).
@@ -53,12 +82,13 @@ https://jajan-riyen.vercel.app/api/payment/webhook
 
 ## Keamanan yang sudah diterapkan
 
-- ✅ Signature webhook diverifikasi `sha512(order_id + status_code + gross_amount + serverKey)` — payload palsu ditolak **403**.
-- ✅ Nominal webhook dicocokkan dengan tagihan — notifikasi nominal beda diabaikan.
+- ✅ Signature webhook diverifikasi `sha512(order_id + status_code + gross_amount + serverKey)` — payload palsu ditolak **403** (diuji dengan key asli).
+- ✅ Nominal webhook dicocokkan dengan tagihan — notifikasi nominal beda diabaikan (diuji).
 - ✅ Anti-regresi status: `PAID` tidak bisa diturunkan oleh notifikasi lain; `EXPIRED` yang ternyata terbayar tetap dinaikkan ke `PAID` (gateway = sumber kebenaran).
-- ✅ Idempoten: settlement berulang aman; satu order tidak bisa ter-charge ganda.
+- ✅ Idempoten: settlement berulang aman (diuji); satu order tidak bisa ter-charge ganda; `reference` transaksi **unique** di DB (anti double-claim).
+- ✅ Pengaman polling: bila webhook belum/gagal terkirim, server cek status langsung ke API Midtrans (maks 1×/4 detik per transaksi) — tetap validasi server-ke-server, bukan klaim pembeli.
 - ✅ QRIS kedaluwarsa: server menandai **"Pembayaran Expired"** dan buyer bisa buat QR baru.
-- ✅ Semua kredensial hanya via environment variable di server.
+- ✅ Semua kredensial hanya via environment variable di server; route simulasi demo otomatis 404 saat key terpasang.
 
 ## Arsitektur singkat
 
@@ -79,7 +109,8 @@ payUrl, paidAt, expiresAt, rawPayload) — semua transaksi & status tersimpan.
 
 | Masalah | Penyebab & solusi |
 |---|---|
-| QR tampil tapi bayar tidak terdeteksi | URL webhook belum didaftarkan di Midtrans, atau salah domain — cek langkah 4 |
+| Error "Payment channel is not activated" | Channel QRIS/GoPay belum diaktifkan di dashboard Midtrans → lihat bagian **STATUS SAAT INI** di atas |
+| QR tampil tapi bayar tidak terdeteksi | URL webhook belum didaftarkan di Midtrans, atau salah domain — cek langkah 4 (fallback polling akan tetap mendeteksi maks. beberapa detik lebih lambat) |
 | Webhook di dashboard gagal (403) | Signature tidak cocok — pastikan Server Key di Vercel sama dengan akun gateway |
 | "Gagal membuat QRIS" | Server Key salah/produksi tanpa verifikasi; lihat `detail` pada respons error |
 | Masih muncul tombol "Simulasi" | `MIDTRANS_SERVER_KEY` belum terisi di deployment tersebut — set env lalu Redeploy |

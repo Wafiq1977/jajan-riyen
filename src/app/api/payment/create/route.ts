@@ -75,8 +75,13 @@ export async function POST(req: NextRequest) {
       await db.payment.update({ where: { id: latest.id }, data: { status: "EXPIRED" } });
     }
 
-    // Buat attempt baru — reference unik per attempt (dibutuhkan Midtrans)
-    const reference = makeReference(order.code);
+    // Buat attempt baru — reference unik per attempt (dibutuhkan Midtrans).
+    // Pre-check collision (sangat langka, 1/65536) SEBELUM charge agar tidak
+    // ada transaksi yatim di gateway bila DB menolak unique constraint.
+    let reference = makeReference(order.code);
+    if (await db.payment.findUnique({ where: { reference } })) {
+      reference = makeReference(order.code);
+    }
     const charge = gatewayActive
       ? await createMidtransQris({
           reference,
@@ -104,10 +109,22 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ payment });
   } catch (err) {
     console.error("[payment/create] gagal:", err);
+    const detail = err instanceof Error ? err.message.slice(0, 200) : "tidak diketahui";
+
+    // Pesan ramah untuk kondisi gateway yang umum
+    let error = "Gagal membuat QRIS. Coba lagi beberapa saat.";
+    if (/not activated/i.test(detail)) {
+      error =
+        "QRIS otomatis belum aktif: channel pembayaran QRIS/GoPay belum diaktifkan di akun Midtrans. " +
+        "Aktifkan di Dashboard Midtrans → Settings → Payment Methods, atau gunakan metode TUNAI sementara.";
+    } else if (/wrong server key|unauthor|401|access denied/i.test(detail)) {
+      error = "Kredensial payment gateway tidak valid. Periksa MIDTRANS_SERVER_KEY di server.";
+    }
+
     return NextResponse.json(
       {
-        error: "Gagal membuat QRIS. Coba lagi beberapa saat.",
-        detail: err instanceof Error ? err.message.slice(0, 160) : "tidak diketahui",
+        error,
+        detail,
       },
       { status: 502 }
     );
