@@ -114,23 +114,30 @@ export async function POST(req: NextRequest) {
 
     // Pesan ramah untuk kondisi gateway yang umum
     let error = "Gagal membuat QRIS. Coba lagi beberapa saat.";
-    if (/not activated/i.test(detail)) {
-      const dash = IS_PRODUCTION
-        ? "https://dashboard.midtrans.com"
-        : "https://dashboard.sandbox.midtrans.com";
-      error =
-        `Channel pembayaran QRIS/GoPay belum aktif di akun Midtrans ` +
-        `${IS_PRODUCTION ? "PRODUKSI" : "SANDBOX"}. Coba: (1) buka ${dash} → ` +
-        `Settings → Payment → aktifkan QRIS/GoPay (menu "Payment Link" TIDAK berlaku ` +
-        `untuk transaksi API); (2) bila tetap ditolak, email support@midtrans.com ` +
-        `minta aktivasi manual channel Core API (QRIS & GoPay) — cantumkan MID akun. ` +
-        `Sementara, metode TUNAI tetap bisa dipakai.`;
+    if (/not activated/i.test(detail) || /pop id is not found/i.test(detail)) {
+      if (IS_PRODUCTION) {
+        error =
+          `Channel QRIS/GoPay belum aktif di akun Midtrans PRODUKSI (uang asli). ` +
+          `Langkah aktivasi: (1) buka https://dashboard.midtrans.com → lengkapi & verifikasi ` +
+          `data merchant (identitas + dokumen usaha + rekening bank) sampai akun berstatus ` +
+          `terverifikasi; (2) Settings → Payment → aktifkan QRIS & GoPay — untuk akun produksi ` +
+          `ini butuh persetujuan tim Midtrans (bukan sekadar centang); (3) bila ditolak/belum ` +
+          `tersedia, email support@midtrans.com minta aktivasi channel Core API (QRIS & GoPay) ` +
+          `— cantumkan MID akun. Sementara, metode TUNAI tetap bisa dipakai.`;
+      } else {
+        const dash = "https://dashboard.sandbox.midtrans.com";
+        error =
+          `Channel pembayaran QRIS/GoPay belum diaktifkan di akun Midtrans SANDBOX. Coba: (1) buka ${dash} → ` +
+          `Settings → Payment → aktifkan QRIS/GoPay (menu "Payment Link" TIDAK berlaku ` +
+          `untuk transaksi API); (2) bila tetap ditolak, email support@midtrans.com ` +
+          `minta aktivasi manual channel Core API (QRIS & GoPay) — cantumkan MID akun. ` +
+          `Sementara, metode TUNAI tetap bisa dipakai.`;
+      }
     } else if (/unknown merchant|server_key|wrong server key|unauthor|401|access denied/i.test(detail)) {
       error =
-        "Server Key tidak dikenali gateway (401). Penyebab umum: (1) key sandbox akun Midtrans " +
-        "baru TIDAK berprefix 'SB-' sehingga wajib set MIDTRANS_IS_PRODUCTION=false agar dipakai " +
-        "ke sandbox; (2) key produksi/sandbox tertukar antar lingkungan; (3) spasi/salah salin key. " +
-        "Setelah mengubah env di Vercel, wajib Redeploy.";
+        "Server Key tidak dikenali gateway (401). Penyebab umum: (1) nilai MIDTRANS_SERVER_KEY " +
+        "berisi key sandbox padahal MIDTRANS_IS_PRODUCTION=true, atau sebaliknya; (2) spasi/salah " +
+        "salin key; (3) key lama dicabut dashboard. Setelah mengubah env di Vercel, wajib Redeploy.";
     }
 
     return NextResponse.json(

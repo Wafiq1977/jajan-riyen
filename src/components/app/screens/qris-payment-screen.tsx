@@ -182,6 +182,11 @@ export default function QrisPaymentScreen({
                   SANDBOX
                 </span>
               )}
+              {env === "production" && (
+                <span className="ml-1.5 rounded-full bg-amber-300/90 px-1.5 py-0.5 text-[9px] font-extrabold text-amber-950">
+                  PRODUKSI
+                </span>
+              )}
             </p>
           </div>
         </div>
