@@ -231,36 +231,45 @@ export default function OrdersScreen({
                   </div>
                   {order.paymentMethod === "QRIS" && (() => {
                     const p = order.payments?.[0];
-                    if (!p) {
-                      return (
-                        <p className="mt-2 text-right text-[9px] font-bold text-violet-400">
-                          QRIS belum dibayar
-                        </p>
-                      );
-                    }
+                    const canPay =
+                      order.status === "PENDING" &&
+                      onPayQris &&
+                      (!p || ["PENDING", "EXPIRED", "FAILED"].includes(p.status));
                     return (
                       <div className="mt-2 flex items-center justify-end gap-2">
-                        <span
-                          className={cn(
-                            "rounded-full px-2 py-0.5 text-[9px] font-extrabold",
-                            p.status === "PAID" && "bg-emerald-50 text-emerald-600",
-                            p.status === "PENDING" && "bg-amber-50 text-amber-600",
-                            (p.status === "EXPIRED" || p.status === "FAILED") &&
-                              "bg-red-50 text-red-500"
-                          )}
-                        >
-                          {paymentStatusLabel(p.status)}
-                        </span>
-                        {(p.status === "PENDING" || p.status === "EXPIRED") &&
-                          order.status === "PENDING" &&
-                          onPayQris && (
-                            <button
-                              onClick={() => onPayQris(order.id)}
-                              className="press rounded-full bg-primary px-3 py-1 text-[9px] font-extrabold text-white shadow-sm hover:bg-teal-700"
-                            >
-                              Bayar QRIS
-                            </button>
-                          )}
+                        {!p ? (
+                          <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[9px] font-extrabold text-violet-500">
+                            QRIS belum dibayar
+                          </span>
+                        ) : (
+                          <span
+                            className={cn(
+                              "rounded-full px-2 py-0.5 text-[9px] font-extrabold",
+                              p.status === "PAID" && "bg-emerald-50 text-emerald-600",
+                              p.status === "PENDING" && "bg-amber-50 text-amber-600",
+                              (p.status === "EXPIRED" || p.status === "FAILED") &&
+                                "bg-red-50 text-red-500"
+                            )}
+                          >
+                            {paymentStatusLabel(p.status)}
+                          </span>
+                        )}
+                        {p?.reference && p.status !== "PAID" && (
+                          <span
+                            className="max-w-[110px] truncate rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[9px] font-bold text-slate-400"
+                            title={`Kode referensi: ${p.reference}`}
+                          >
+                            {p.reference}
+                          </span>
+                        )}
+                        {canPay && (
+                          <button
+                            onClick={() => onPayQris(order.id)}
+                            className="press rounded-full bg-primary px-3 py-1 text-[9px] font-extrabold text-white shadow-sm hover:bg-teal-700"
+                          >
+                            {p?.status === "PENDING" ? "Cek Status" : "Bayar QRIS"}
+                          </button>
+                        )}
                       </div>
                     );
                   })()}

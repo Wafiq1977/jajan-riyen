@@ -19,6 +19,21 @@ export async function GET(
         items: true,
         store: { select: { id: true, name: true, category: true, logoUrl: true } },
         user: { select: { id: true, phone: true, name: true } },
+        payments: {
+          orderBy: { createdAt: "desc" },
+          select: {
+            id: true,
+            gateway: true,
+            reference: true,
+            amount: true,
+            status: true,
+            verifiedAt: true,
+            rejectNote: true,
+            paidAt: true,
+            expiresAt: true,
+            createdAt: true,
+          },
+        },
       },
     });
 

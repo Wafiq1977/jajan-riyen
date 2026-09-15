@@ -20,8 +20,11 @@ export async function GET(
           select: {
             id: true,
             gateway: true,
+            reference: true,
             amount: true,
             status: true,
+            verifiedAt: true,
+            rejectNote: true,
             paidAt: true,
             expiresAt: true,
             createdAt: true,
@@ -54,6 +57,25 @@ export async function PATCH(
     const existing = await db.order.findUnique({ where: { id } });
     if (!existing) {
       return NextResponse.json({ error: "Pesanan tidak ditemukan" }, { status: 404 });
+    }
+
+    // Gate QRIS manual: pesanan QRIS hanya bisa diterima (PENDING → PROCESSING)
+    // bila bukti bayar sudah DIVERIFIKASI penjual (payment PAID).
+    if (status === "PROCESSING" && existing.paymentMethod === "QRIS") {
+      const latestPayment = await db.payment.findFirst({
+        where: { orderId: id },
+        orderBy: { createdAt: "desc" },
+        select: { status: true },
+      });
+      if (latestPayment?.status !== "PAID") {
+        return NextResponse.json(
+          {
+            error:
+              "Pembayaran QRIS belum terverifikasi. Periksa & verifikasi kode referensi pembeli dulu di daftar pesanan.",
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const order = await db.order.update({

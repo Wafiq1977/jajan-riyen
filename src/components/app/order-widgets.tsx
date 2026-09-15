@@ -423,9 +423,48 @@ export function ScanDialog({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     })
-      .then((r) => (r.ok ? r.json() : null))
+      .then(async (r) => {
+        if (!r.ok) {
+          const d = await r.json().catch(() => null);
+          setError(d?.error || "Gagal memperbarui status pesanan");
+          return null;
+        }
+        setError(null);
+        return r.json();
+      })
       .then((d) => {
         if (d?.order) setOrder(d.order as Order);
+        onOrderUpdated?.();
+      })
+      .catch(() => {});
+  };
+
+  // Verifikasi bukti bayar QRIS manual (hanya penjual pemilik toko)
+  const verifyPayment = (paymentId: string, action: "verify" | "reject") => {
+    if (!sellerStoreId) return;
+    fetch(`/api/payment/${paymentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, storeId: sellerStoreId }),
+    })
+      .then(async (r) => {
+        if (!r.ok) {
+          const d = await r.json().catch(() => null);
+          setError(d?.error || "Gagal memverifikasi pembayaran");
+          return null;
+        }
+        setError(null);
+        return r.json();
+      })
+      .then((d) => {
+        if (d?.payment) {
+          setOrder(
+            (cur) =>
+              cur
+                ? ({ ...cur, payments: [d.payment, ...(cur.payments ?? [])] } as Order)
+                : cur
+          );
+        }
         onOrderUpdated?.();
       })
       .catch(() => {});
@@ -557,12 +596,57 @@ export function ScanDialog({
                 sellerStoreId ? (
                   isSellerMine ? (
                     <div className="space-y-2">
+                      {order.paymentMethod === "QRIS" &&
+                        (() => {
+                          const p = order.payments?.[0];
+                          if (p?.status === "PENDING") {
+                            return (
+                              <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-3">
+                                <p className="text-[9px] font-bold uppercase tracking-wide text-amber-600">
+                                  Bukti bayar QRIS — cek mutasi/e-walletmu
+                                </p>
+                                <p className="break-all font-mono text-xs font-extrabold text-amber-900">
+                                  {p.reference}
+                                </p>
+                                <div className="mt-2 grid grid-cols-2 gap-2">
+                                  <Button
+                                    onClick={() => verifyPayment(p.id, "verify")}
+                                    className="press h-9 rounded-xl bg-emerald-500 text-[11px] font-extrabold text-white hover:bg-emerald-600"
+                                  >
+                                    ✅ Terima Bayar
+                                  </Button>
+                                  <Button
+                                    onClick={() => verifyPayment(p.id, "reject")}
+                                    className="press h-9 rounded-xl border-2 border-red-200 bg-white text-[11px] font-extrabold text-red-500 hover:bg-red-50"
+                                  >
+                                    ✖ Tolak Bukti
+                                  </Button>
+                                </div>
+                              </div>
+                            );
+                          }
+                          if (p?.status === "PAID") {
+                            return (
+                              <p className="rounded-xl bg-emerald-50 p-2.5 text-center text-[10px] font-bold text-emerald-600">
+                                Pembayaran terverifikasi · <span className="font-mono">{p.reference}</span>
+                              </p>
+                            );
+                          }
+                          return (
+                            <p className="rounded-xl bg-violet-50 p-2.5 text-center text-[10px] font-bold text-violet-500">
+                              Pembeli belum kirim kode referensi pembayaran QRIS.
+                            </p>
+                          );
+                        })()}
                       {order.status === "PENDING" && (
                         <Button
                           onClick={() => advance(order.id, "PROCESSING")}
-                          className="press h-10 w-full rounded-xl bg-primary text-xs font-extrabold hover:bg-teal-700"
+                          disabled={order.paymentMethod === "QRIS" && order.payments?.[0]?.status !== "PAID"}
+                          className="press h-10 w-full rounded-xl bg-primary text-xs font-extrabold hover:bg-teal-700 disabled:opacity-40"
                         >
-                          ✅ Terima Pesanan Ini
+                          {order.paymentMethod === "QRIS" && order.payments?.[0]?.status !== "PAID"
+                            ? "⏳ Verifikasi Pembayaran Dulu"
+                            : "✅ Terima Pesanan Ini"}
                         </Button>
                       )}
                       {order.status === "PROCESSING" && (

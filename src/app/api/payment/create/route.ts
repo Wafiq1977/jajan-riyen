@@ -1,12 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import {
-  createDemoQris,
-  createMidtransQris,
-  gatewayActive,
-  IS_PRODUCTION,
-  makeReference,
-} from "@/lib/payment";
 
 export const runtime = "nodejs";
 
@@ -15,32 +8,50 @@ const SAFE_SELECT = {
   id: true,
   orderId: true,
   gateway: true,
+  reference: true,
   amount: true,
   status: true,
-  qrImageUrl: true,
-  payUrl: true,
+  verifiedAt: true,
+  rejectNote: true,
   paidAt: true,
   expiresAt: true,
   createdAt: true,
 } as const;
 
 /**
- * POST /api/payment/create — buat/ambil transaksi QRIS untuk satu order.
- * Body: { orderId }
- * Idempoten: bila ada pembayaran PENDING yang masih berlaku → dikembalikan apa adanya.
- * Bila expired → ditandai EXPIRED dan dibuat attempt baru (QR baru).
- * Bila sudah PAID → dikembalikan tanpa membuat tagihan baru (anti double-charge).
+ * POST /api/payment/create — pembeli mengirim BUKTI bayar QRIS manual:
+ * kode referensi transaksi dari aplikasi e-wallet/m-banking.
+ *
+ * Alur QRIS MANUAL (tanpa gateway):
+ *  1. Pembeli scan QRIS statis penjual (gambar dari toko) & bayar sesuai total.
+ *  2. Pembeli menyalin kode referensi transaksi lalu kirim di sini.
+ *  3. Status payment = PENDING ("Menunggu Verifikasi Penjual").
+ *  4. Penjual cek mutasi/e-wallet → konfirmasi (PAID) atau tolak (FAILED)
+ *     via PATCH /api/payment/[id].
+ *
+ * Idempoten: bila pembayaran PENDING untuk order yang sama sudah ada,
+ * dikembalikan apa adanya (anti dobel-kirim).
  */
 export async function POST(req: NextRequest) {
   try {
-    const { orderId } = (await req.json()) as { orderId?: string };
+    const { orderId, referenceCode } = (await req.json()) as {
+      orderId?: string;
+      referenceCode?: string;
+    };
     if (!orderId) {
       return NextResponse.json({ error: "orderId wajib diisi" }, { status: 400 });
+    }
+    const code = (referenceCode || "").trim();
+    if (code.length < 4 || code.length > 64) {
+      return NextResponse.json(
+        { error: "Kode referensi harus 4–64 karakter — salin dari bukti transaksi e-wallet/m-banking-mu." },
+        { status: 400 }
+      );
     }
 
     const order = await db.order.findUnique({
       where: { id: orderId },
-      include: { store: { select: { name: true } }, user: { select: { name: true } } },
+      include: { store: { select: { id: true, name: true, qrisEnabled: true, qrisImageUrl: true } } },
     });
     if (!order) {
       return NextResponse.json({ error: "Pesanan tidak ditemukan" }, { status: 404 });
@@ -51,58 +62,35 @@ export async function POST(req: NextRequest) {
     if (order.status === "CANCELLED") {
       return NextResponse.json({ error: "Pesanan sudah dibatalkan" }, { status: 409 });
     }
+    if (order.status === "COMPLETED") {
+      return NextResponse.json({ error: "Pesanan sudah selesai" }, { status: 409 });
+    }
+    if (!order.store.qrisEnabled && !order.store.qrisImageUrl) {
+      return NextResponse.json(
+        { error: "Penjual belum mengaktifkan QRIS. Gunakan metode TUNAI atau hubungi penjual." },
+        { status: 400 }
+      );
+    }
 
-    // Pembayaran terakhir yang masih PENDING → periksa kedaluwarsanya
+    // Idempoten: bukti PENDING terakhir dipakai ulang (anti dobel-submit)
     const latest = await db.payment.findFirst({
       where: { orderId: order.id },
       orderBy: { createdAt: "desc" },
     });
-
-    if (latest?.status === "PAID") {
-      return NextResponse.json({
-        payment: { ...latest, qrImageUrl: undefined, qrString: undefined },
-      });
-    }
-
     if (latest?.status === "PENDING") {
-      if (latest.expiresAt && latest.expiresAt > new Date()) {
-        // Masih berlaku → pakai ulang (idempoten)
-        const fresh = await db.payment.findUnique({
-          where: { id: latest.id },
-          select: SAFE_SELECT,
-        });
-        return NextResponse.json({ payment: fresh });
-      }
-      await db.payment.update({ where: { id: latest.id }, data: { status: "EXPIRED" } });
+      return NextResponse.json({ payment: await db.payment.findUnique({ where: { id: latest.id }, select: SAFE_SELECT }) });
     }
-
-    // Buat attempt baru — reference unik per attempt (dibutuhkan Midtrans).
-    // Pre-check collision (sangat langka, 1/65536) SEBELUM charge agar tidak
-    // ada transaksi yatim di gateway bila DB menolak unique constraint.
-    let reference = makeReference(order.code);
-    if (await db.payment.findUnique({ where: { reference } })) {
-      reference = makeReference(order.code);
+    if (latest?.status === "PAID") {
+      return NextResponse.json({ payment: await db.payment.findUnique({ where: { id: latest.id }, select: SAFE_SELECT }) });
     }
-    const charge = gatewayActive
-      ? await createMidtransQris({
-          reference,
-          amount: order.totalPrice,
-          customerName: order.user?.name || undefined,
-          itemName: `Pesanan ${order.code}`,
-        })
-      : await createDemoQris(reference, order.totalPrice);
 
     const payment = await db.payment.create({
       data: {
         orderId: order.id,
-        gateway: gatewayActive ? "midtrans" : "demo",
-        reference: charge.reference,
+        gateway: "manual",
+        reference: code,
         amount: order.totalPrice,
         status: "PENDING",
-        qrString: charge.qrString,
-        qrImageUrl: charge.qrImageUrl,
-        payUrl: charge.payUrl,
-        expiresAt: charge.expiresAt,
       },
       select: SAFE_SELECT,
     });
@@ -110,42 +98,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ payment });
   } catch (err) {
     console.error("[payment/create] gagal:", err);
-    const detail = err instanceof Error ? err.message.slice(0, 200) : "tidak diketahui";
-
-    // Pesan ramah untuk kondisi gateway yang umum
-    let error = "Gagal membuat QRIS. Coba lagi beberapa saat.";
-    if (/not activated/i.test(detail) || /pop id is not found/i.test(detail)) {
-      if (IS_PRODUCTION) {
-        error =
-          `Channel QRIS/GoPay belum aktif di akun Midtrans PRODUKSI (uang asli). ` +
-          `Langkah aktivasi: (1) buka https://dashboard.midtrans.com → lengkapi & verifikasi ` +
-          `data merchant (identitas + dokumen usaha + rekening bank) sampai akun berstatus ` +
-          `terverifikasi; (2) Settings → Payment → aktifkan QRIS & GoPay — untuk akun produksi ` +
-          `ini butuh persetujuan tim Midtrans (bukan sekadar centang); (3) bila ditolak/belum ` +
-          `tersedia, email support@midtrans.com minta aktivasi channel Core API (QRIS & GoPay) ` +
-          `— cantumkan MID akun. Sementara, metode TUNAI tetap bisa dipakai.`;
-      } else {
-        const dash = "https://dashboard.sandbox.midtrans.com";
-        error =
-          `Channel pembayaran QRIS/GoPay belum diaktifkan di akun Midtrans SANDBOX. Coba: (1) buka ${dash} → ` +
-          `Settings → Payment → aktifkan QRIS/GoPay (menu "Payment Link" TIDAK berlaku ` +
-          `untuk transaksi API); (2) bila tetap ditolak, email support@midtrans.com ` +
-          `minta aktivasi manual channel Core API (QRIS & GoPay) — cantumkan MID akun. ` +
-          `Sementara, metode TUNAI tetap bisa dipakai.`;
-      }
-    } else if (/unknown merchant|server_key|wrong server key|unauthor|401|access denied/i.test(detail)) {
-      error =
-        "Server Key tidak dikenali gateway (401). Penyebab umum: (1) nilai MIDTRANS_SERVER_KEY " +
-        "berisi key sandbox padahal MIDTRANS_IS_PRODUCTION=true, atau sebaliknya; (2) spasi/salah " +
-        "salin key; (3) key lama dicabut dashboard. Setelah mengubah env di Vercel, wajib Redeploy.";
-    }
-
     return NextResponse.json(
-      {
-        error,
-        detail,
-      },
-      { status: 502 }
+      { error: "Gagal mengirim bukti pembayaran. Coba lagi beberapa saat." },
+      { status: 500 }
     );
   }
 }

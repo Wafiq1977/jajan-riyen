@@ -540,3 +540,25 @@ Stage Summary:
 - Blokir tersisa BUKAN kode: channel QRIS & GoPay produksi belum diaktifkan Midtrans (402/404-pop-id) — user harus verifikasi data merchant + aktivasi channel (+ email support bila perlu), daftarkan webhook produksi, set 2 env di Vercel (MIDTRANS_SERVER_KEY + MIDTRANS_IS_PRODUCTION=true) lalu Redeploy
 - Selama channel belum aktif: UI menampilkan panduan aktivasi otomatis dan metode TUNAI tetap berfungsi
 - File berubah: src/app/api/payment/create/route.ts, src/components/app/screens/qris-payment-screen.tsx, PANDUAN-MIDTRANS.md, worklog.md; .env (gitignored)
+
+---
+Task ID: 21
+Agent: Z.ai Code (main)
+Task: Kembalikan pembayaran QRIS MANUAL tanpa gateway Midtrans + fitur kode referensi transaksi dari pembeli sebagai bukti bayar yang diverifikasi penjual secara manual (permintaan user)
+
+Work Log:
+- Explore menyeluruh: map Payment/Store/Order schema, 5 route payment, semua screen pembeli/penjual, jalur navigasi jr-app, patch /api/orders/[id]
+- Prisma: Payment.reference lepas @unique (kode dari pembeli), tambah verifiedAt/verifiedBy/rejectNote; gateway default "manual"; kolom gateway lama jadi legacy → db:push Neon sukses
+- HAPUS total gateway: src/lib/payment.ts, api/payment/{webhook,demo-simulate,config}; .env bersih dari MIDTRANS_*; .env.example diperbarui (QRIS manual tanpa env khusus)
+- Backend baru: POST /api/payment/create = kirim bukti {orderId, referenceCode} (validasi 4-64 char, order QRIS aktif, idempoten utk PENDING/PAID, gateway "manual"); GET /api/payment/[id] = polling; PATCH /api/payment/[id] = verifikasi penjual {action: verify|reject, storeId} + cek kepemilikan toko (403) + anti-regresi (409 bila bukan PENDING)
+- PATCH /api/orders/[id]: gate PENDING→PROCESSING utk order QRIS — payment terakhir wajib PAID (409 "Pembayaran QRIS belum terverifikasi"); route orders & code/[code] menyertakan reference/verifiedAt/rejectNote di select payments
+- UI pembeli: qris-payment-screen ditulis ulang (QR statis penjual + NMID, nominal, 3 langkah bayar, input "Kode Referensi Transaksi", Kirim Bukti, layar "Menunggu Verifikasi" + polling 3 dtk, panel penolakan dgn alasan + form ulang, PaidPanel "diverifikasi penjual"); checkout & cart: hapus config/gateway, QRIS tersedia bila store.qrisEnabled, banner instruksi manual; orders-screen: badge status + chip kode referensi + tombol Bayar QRIS/Cek Status (juga saat belum ada payment); format: PENDING → "Menunggu Verifikasi"
+- UI penjual: dashboard order card — kotak amber "Kode referensi dari pembeli" + tombol ✅ Terima Bayar / ✖ Tolak Bukti, tombol Terima Pesanan terkunci ("⏳ Verifikasi Pembayaran Dulu") sebelum PAID; ScanDialog: blok verifikasi + guard yang sama; actionError banner utk error server; QrisPanel caption diperbaiki (QR asli → "Bayar sesuai total, lalu kirim kode referensi"; QR contoh → peringatan)
+- Verifikasi browser end-to-end: pembeli (6287836049981) order QRIS di Bu Rina (JR-86R7B7 Rp18.000) → kirim kode "TP-240915-88123" → status Menunggu Verifikasi; guard API: terima sebelum verifikasi 409, verify toko salah 403; login Rina (6281234500001) → dashboard tampil kartu verifikasi dgn kode → Terima Bayar → DB PAID (verifiedAt/By terisi) → badge "Pembayaran Berhasil" → Terima Pesanan → Diproses; sisi pembeli: payment PAID + verifiedAt via API
+- Docs: PANDUAN-MIDTRANS.md dihapus, PANDUAN-PEMBAYARAN.md baru (alur, pengaman, setup penjual, lokasi kode referensi per aplikasi, arsitektur, troubleshooting)
+
+Stage Summary:
+- Aplikasi kembali ke QRIS MANUAL (tanpa Midtrans): pembeli kirim kode referensi sebagai bukti, penjual cek & konfirmasi manual; semua jalur gateway sudah dihapus dari kode & env
+- Pengaman inti: verifikasi hanya oleh pemilik toko, pesanan QRIS hanya bisa diproses setelah bukti diverifikasi, anti dobel-kirim & anti regresi
+- Data uji bersisa: order JR-86R7B7 (PROCESSING, PAID) di Geprek Mercon Bu Rina — bukti alur berjalan; layar & API terverifikasi end-to-end via browser
+- Commit + push mengikuti; push manual mungkin perlu oleh user (kredensial GitHub sandbox masih belum ada)

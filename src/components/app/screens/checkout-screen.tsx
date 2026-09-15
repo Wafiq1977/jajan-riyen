@@ -34,21 +34,8 @@ export default function CheckoutScreen({
   const [store, setStore] = useState<Store | null>(null);
   const [qty, setQty] = useState(1);
   const [method, setMethod] = useState<PaymentMethod>("TUNAI");
-  const [gateway, setGateway] = useState<"midtrans" | "demo" | null>(null);
-  const [env, setEnv] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  // Mode pembayaran QRIS platform (tanpa kredensial — hanya nama mode)
-  useEffect(() => {
-    fetch("/api/payment/config")
-      .then((r) => r.json())
-      .then((d) => {
-        setGateway(d.gateway ?? null);
-        setEnv(d.environment ?? null);
-      })
-      .catch(() => {});
-  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -101,9 +88,8 @@ export default function CheckoutScreen({
   const maxQty = product ? Math.min(product.stock, 10) : 10;
   const pct = product ? discountPercent(product.price, product.originalPrice) : null;
 
-  // QRIS dinamis (gateway/demo) tersedia untuk semua toko; QR statis toko tetap dihormati
-  const qrisDynamic = gateway !== null;
-  const qrisAvailable = qrisDynamic || !!store?.qrisEnabled;
+  // QRIS manual: tersedia bila penjual mengaktifkan QRIS (dengan gambar QR statis)
+  const qrisAvailable = !!store?.qrisEnabled;
 
   return (
     <div className="pb-32">
@@ -212,13 +198,7 @@ export default function CheckoutScreen({
             subtitle={
               !qrisAvailable
                 ? "Penjual belum aktifkan"
-                : gateway === "midtrans"
-                  ? env === "sandbox"
-                    ? "Scan otomatis (Sandbox)"
-                    : "Scan otomatis"
-                  : gateway === "demo"
-                    ? "Scan & bayar (demo)"
-                    : "Scan & bayar"
+                : "Scan & kirim kode referensi"
             }
           />
         </div>
@@ -230,30 +210,26 @@ export default function CheckoutScreen({
           </p>
         )}
 
-        {method === "QRIS" && product && store && !qrisDynamic && (
-          <QrisPanel
-            merchantName={store.name}
-            merchantId={store.id}
-            description={product.name}
-            amount={total}
-            sellerQris={store.qrisEnabled ? { imageUrl: store.qrisImageUrl, code: store.qrisCode } : null}
-          />
-        )}
-
-        {method === "QRIS" && qrisDynamic && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="mt-3 flex items-start gap-2.5 rounded-2xl bg-teal-50/70 p-3.5 text-[11px] font-medium leading-relaxed text-teal-800"
-          >
-            <QrCode className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-            Setelah pesanan dibuat, kode <b>QRIS sesuai total</b> tampil otomatis. Status
-            pembayaran terkonfirmasi langsung oleh payment gateway (webhook) — tanpa
-            konfirmasi manual.
-            {gateway === "demo" && (
-              <b className="ml-1 text-violet-500">(Mode demo — tanpa gateway)</b>
-            )}
-          </motion.div>
+        {method === "QRIS" && product && store && qrisAvailable && (
+          <>
+            <QrisPanel
+              merchantName={store.name}
+              merchantId={store.id}
+              description={product.name}
+              amount={total}
+              sellerQris={store.qrisEnabled ? { imageUrl: store.qrisImageUrl, code: store.qrisCode } : null}
+            />
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="mt-3 flex items-start gap-2.5 rounded-2xl bg-teal-50/70 p-3.5 text-[11px] font-medium leading-relaxed text-teal-800"
+            >
+              <QrCode className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+              Setelah pesanan dibuat, scan QRIS penjual di atas, bayar sesuai total,
+              lalu <b>masukkan kode referensi transaksi</b> sebagai bukti bayar.
+              Penjual akan mengecek dan mengonfirmasi pembayaranmu secara manual.
+            </motion.div>
+          </>
         )}
 
         {method === "TUNAI" && (

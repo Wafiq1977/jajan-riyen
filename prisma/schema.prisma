@@ -84,16 +84,19 @@ model Payment {
   id         String    @id @default(cuid())
   orderId    String
   order      Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  gateway    String // "midtrans" | "demo"
-  reference  String @unique // ID transaksi di gateway (unik per attempt)
+  gateway    String    @default("manual") // "manual" (kode referensi) | legacy: "midtrans"/"demo"
+  reference  String // kode referensi transaksi dari pembeli (bukti bayar QRIS)
   amount     Int
-  status     String    @default("PENDING") // PENDING | PAID | EXPIRED | FAILED
-  qrString   String? // payload QRIS mentah (audit)
-  qrImageUrl String? // gambar QR (data URL / URL gateway) untuk ditampilkan
-  payUrl     String? // halaman pembayaran gateway (opsional)
+  status     String    @default("PENDING") // PENDING (menunggu verifikasi penjual) | PAID | FAILED | EXPIRED (legacy)
+  verifiedAt DateTime? // waktu penjual memverifikasi bukti bayar
+  verifiedBy String? // id toko penjual yang memverifikasi
+  rejectNote String? // alasan penolakan dari penjual (opsional)
+  qrString   String? // (legacy gateway) payload QRIS mentah
+  qrImageUrl String? // (legacy gateway) gambar QR untuk ditampilkan
+  payUrl     String? // (legacy gateway) halaman pembayaran
   paidAt     DateTime?
-  expiresAt  DateTime?
-  rawPayload String? // payload webhook terakhir (JSON) untuk audit
+  expiresAt  DateTime? // (legacy gateway) kedaluwarsa QR
+  rawPayload String? // (legacy gateway) payload webhook terakhir
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 

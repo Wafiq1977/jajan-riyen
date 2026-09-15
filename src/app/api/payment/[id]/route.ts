@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { fetchMidtransStatus, mapMidtransStatus } from "@/lib/payment";
 
 export const runtime = "nodejs";
 
@@ -11,28 +10,16 @@ const SAFE_SELECT = {
   reference: true,
   amount: true,
   status: true,
-  qrImageUrl: true,
-  payUrl: true,
+  verifiedAt: true,
+  rejectNote: true,
   paidAt: true,
   expiresAt: true,
   createdAt: true,
 } as const;
 
 /**
- * Pembatas cek status ke API Midtrans (in-memory): maks. 1x / 4 detik per
- * pembayaran — polling frontend tiap 3 detik tidak membuat spam request.
- */
-const lastGatewayCheck = new Map<string, number>();
-const GATEWAY_CHECK_INTERVAL_MS = 4000;
-
-/**
- * GET /api/payment/[id] — polling status pembayaran oleh frontend.
- *
- * Sumber kebenaran status:
- * 1. WEBHOOK Midtrans (/api/payment/webhook) — mekanisme utama.
- * 2. PENGAMAN: bila masih PENDING, server cek langsung ke API status Midtrans
- *    (server-to-server) sehingga pembayaran tetap terdeteksi bila webhook
- *    belum terdaftar / sesekali gagal terkirim. Tetap berbasis gateway.
+ * GET /api/payment/[id] — polling status pembayaran oleh pembeli.
+ * Pada mode MANUAL, PENDING berarti "menunggu verifikasi penjual".
  */
 export async function GET(
   _req: NextRequest,
@@ -40,55 +27,99 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
-    if (!/^[a-zA-Z0-9]{10,40}$/.test(id)) {
+    if (!/^[a-z0-9]{10,40}$/i.test(id)) {
       return NextResponse.json({ error: "ID tidak valid" }, { status: 400 });
     }
-
-    let payment = await db.payment.findUnique({ where: { id }, select: SAFE_SELECT });
+    const payment = await db.payment.findUnique({ where: { id }, select: SAFE_SELECT });
     if (!payment) {
       return NextResponse.json({ error: "Pembayaran tidak ditemukan" }, { status: 404 });
     }
-
-    // Pengaman: sinkronkan status dari gateway bila masih menunggu
-    if (payment.status === "PENDING" && payment.gateway === "midtrans" && payment.reference) {
-      const last = lastGatewayCheck.get(id) ?? 0;
-      if (Date.now() - last > GATEWAY_CHECK_INTERVAL_MS) {
-        lastGatewayCheck.set(id, Date.now());
-        const g = await fetchMidtransStatus(payment.reference);
-        const mapped = g ? mapMidtransStatus(g.transactionStatus, g.fraudStatus) : null;
-        if (mapped && mapped !== "PENDING") {
-          // Nominal dari gateway harus cocok sebelum menerima PAID
-          const gAmount = g?.grossAmount ? Number(g.grossAmount) : NaN;
-          const amountOk = !Number.isFinite(gAmount) || gAmount + 0.5 >= payment.amount;
-          if (amountOk) {
-            await db.payment.update({
-              where: { id },
-              data: {
-                status: mapped,
-                paidAt: mapped === "PAID" ? new Date() : undefined,
-                rawPayload: g ? JSON.stringify({ via: "status-poll", ...g }).slice(0, 4000) : undefined,
-              },
-            });
-            payment = { ...payment, status: mapped };
-          }
-        }
-      }
-    }
-
-    // Kedaluwarsa lokal: QR PENDING yang lewat masa berlaku → EXPIRED.
-    // (Jika ternyata sudah dibayar, webhook settlement tetap akan mengubahnya ke PAID.)
-    if (
-      payment.status === "PENDING" &&
-      payment.expiresAt &&
-      payment.expiresAt.getTime() <= Date.now()
-    ) {
-      await db.payment.update({ where: { id }, data: { status: "EXPIRED" } });
-      payment = { ...payment, status: "EXPIRED" };
-    }
-
     return NextResponse.json({ payment });
-  } catch (err) {
-    console.error("[payment/get] gagal:", err);
+  } catch (error) {
+    console.error("[payment/:id] GET gagal:", error);
+    return NextResponse.json({ error: "Terjadi kesalahan server" }, { status: 500 });
+  }
+}
+
+/**
+ * PATCH /api/payment/[id] — penjual memverifikasi bukti bayar QRIS manual.
+ * Body: { action: "verify" | "reject", storeId, note? }
+ *
+ * - verify → status PAID (paidAt + verifiedAt terisi). Pesanan QRIS baru bisa
+ *   diterima penjual (PATCH /api/orders/[id] men-gate PENDING→PROCESSING pada
+ *   payment PAID).
+ * - reject → status FAILED (+ rejectNote opsional) — pembeli bisa kirim
+ *   kode referensi baru.
+ */
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    if (!/^[a-z0-9]{10,40}$/i.test(id)) {
+      return NextResponse.json({ error: "ID tidak valid" }, { status: 400 });
+    }
+    const { action, storeId, note } = (await req.json()) as {
+      action?: string;
+      storeId?: string;
+      note?: string;
+    };
+
+    if (!storeId) {
+      return NextResponse.json({ error: "storeId wajib diisi" }, { status: 400 });
+    }
+    if (action !== "verify" && action !== "reject") {
+      return NextResponse.json({ error: "action harus verify atau reject" }, { status: 400 });
+    }
+
+    const payment = await db.payment.findUnique({
+      where: { id },
+      include: { order: { select: { id: true, storeId: true, code: true } } },
+    });
+    if (!payment) {
+      return NextResponse.json({ error: "Pembayaran tidak ditemukan" }, { status: 404 });
+    }
+    // Verifikasi kepemilikan toko (pola sama dengan route seller lain)
+    if (payment.order.storeId !== storeId) {
+      return NextResponse.json(
+        { error: "Bukan pesanan tokomu — tidak berhak memverifikasi" },
+        { status: 403 }
+      );
+    }
+
+    if (payment.status === "PAID" && action === "verify") {
+      // Idempoten
+      return NextResponse.json({ payment: await db.payment.findUnique({ where: { id }, select: SAFE_SELECT }) });
+    }
+    if (payment.status !== "PENDING") {
+      return NextResponse.json(
+        { error: `Pembayaran sudah berstatus ${payment.status} — tidak bisa diubah lagi.` },
+        { status: 409 }
+      );
+    }
+
+    const updated =
+      action === "verify"
+        ? await db.payment.update({
+            where: { id },
+            data: { status: "PAID", paidAt: new Date(), verifiedAt: new Date(), verifiedBy: storeId },
+            select: SAFE_SELECT,
+          })
+        : await db.payment.update({
+            where: { id },
+            data: {
+              status: "FAILED",
+              verifiedAt: new Date(),
+              verifiedBy: storeId,
+              rejectNote: (note || "").trim().slice(0, 140) || null,
+            },
+            select: SAFE_SELECT,
+          });
+
+    return NextResponse.json({ payment: updated });
+  } catch (error) {
+    console.error("[payment/:id] PATCH gagal:", error);
     return NextResponse.json({ error: "Terjadi kesalahan server" }, { status: 500 });
   }
 }

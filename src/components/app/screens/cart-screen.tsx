@@ -35,15 +35,6 @@ export default function CartScreen({
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [store, setStore] = useState<Store | null>(null);
-  const [gateway, setGateway] = useState<"midtrans" | "demo" | null>(null);
-
-  // Mode pembayaran QRIS platform (tanpa kredensial — hanya nama mode)
-  useEffect(() => {
-    fetch("/api/payment/config")
-      .then((r) => r.json())
-      .then((d) => setGateway(d.gateway ?? null))
-      .catch(() => {});
-  }, []);
 
   // Fetch toko keranjang — untuk cek QRIS penjual
   useEffect(() => {
@@ -61,7 +52,7 @@ export default function CartScreen({
     };
   }, [storeId]);
 
-  const qrisAvailable = Boolean(store?.qrisEnabled) || gateway !== null;
+  const qrisAvailable = Boolean(store?.qrisEnabled);
 
   const total = useMemo(() => cartTotalPrice(items), [items]);
   const qty = useMemo(() => cartTotalQty(items), [items]);
@@ -242,7 +233,7 @@ export default function CartScreen({
             disabled={!qrisAvailable}
             icon={<QrCode className="h-6 w-6" />}
             title="QRIS"
-            subtitle={qrisAvailable ? "Scan & bayar" : "Penjual belum aktifkan"}
+            subtitle={qrisAvailable ? "Scan & kirim kode referensi" : "Penjual belum aktifkan"}
           />
         </div>
 

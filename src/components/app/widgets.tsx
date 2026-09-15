@@ -435,7 +435,9 @@ export function QrisPanel({
       </div>
       <div className="mt-3 flex items-center justify-center gap-1.5 rounded-full bg-white px-3 py-1.5 text-[10px] font-bold text-slate-500 shadow-sm">
         <Timer className="h-3 w-3 text-violet-400" />
-        Ini simulasi pembayaran — langsung tekan tombol buat pesanan
+        {useSellerImage
+          ? "Bayar sesuai total, lalu kirim kode referensi transaksimu"
+          : "QR contoh — pastikan penjual mengunggah QRIS asli di pengaturan toko"}
       </div>
     </div>
   );

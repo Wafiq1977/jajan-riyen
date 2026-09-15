@@ -54,7 +54,7 @@ export function statusLabel(status: string): string {
 export function paymentStatusLabel(status: string): string {
   switch (status) {
     case "PENDING":
-      return "Menunggu Pembayaran";
+      return "Menunggu Verifikasi";
     case "PAID":
       return "Pembayaran Berhasil";
     case "EXPIRED":

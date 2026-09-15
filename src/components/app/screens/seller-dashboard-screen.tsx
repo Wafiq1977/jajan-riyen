@@ -19,6 +19,7 @@ import {
   QrCode,
   ImagePlus,
   CheckCircle2,
+  AlertTriangle,
 } from "lucide-react";
 import {
   Dialog,
@@ -68,6 +69,7 @@ export default function SellerDashboardScreen({
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [products, setProducts] = useState<Product[] | null>(null);
   const [scanOpen, setScanOpen] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const load = useCallback(() => {
     if (!store) return;
@@ -97,11 +99,34 @@ export default function SellerDashboardScreen({
 
   const updateOrderStatus = async (id: string, status: string) => {
     setOrders((cur) => cur?.map((o) => (o.id === id ? { ...o, status: status as Order["status"] } : o)) ?? cur);
-    await fetch(`/api/orders/${id}`, {
+    const res = await fetch(`/api/orders/${id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
     });
+    if (!res.ok) {
+      const d = await res.json().catch(() => null);
+      setActionError(d?.error || "Gagal memperbarui pesanan");
+    } else {
+      setActionError(null);
+    }
+    load();
+  };
+
+  // Verifikasi bukti bayar QRIS manual: terima (PAID) atau tolak (FAILED)
+  const verifyPayment = async (paymentId: string, action: "verify" | "reject") => {
+    if (!store) return;
+    const res = await fetch(`/api/payment/${paymentId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, storeId: store.id }),
+    });
+    if (!res.ok) {
+      const d = await res.json().catch(() => null);
+      setActionError(d?.error || "Gagal memverifikasi pembayaran");
+    } else {
+      setActionError(null);
+    }
     load();
   };
 
@@ -230,6 +255,19 @@ export default function SellerDashboardScreen({
 
       {/* Content */}
       <div className="mt-4 px-5 pb-4">
+        {actionError && (
+          <div className="mb-3 flex items-start gap-2 rounded-2xl border border-red-100 bg-red-50 p-3">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-red-500" />
+            <p className="flex-1 text-[11px] font-bold leading-relaxed text-red-600">{actionError}</p>
+            <button
+              onClick={() => setActionError(null)}
+              className="press shrink-0 text-[10px] font-extrabold text-red-400 hover:text-red-600"
+              aria-label="Tutup pesan"
+            >
+              ✕
+            </button>
+          </div>
+        )}
         {tab === "orders" ? (
           !orders ? (
             <SkeletonList count={3} />
@@ -309,17 +347,27 @@ export default function SellerDashboardScreen({
                           const p = order.payments?.[0];
                           if (!p) return null;
                           return (
-                            <span
-                              className={cn(
-                                "rounded-full px-2 py-0.5 text-[9px] font-extrabold",
-                                p.status === "PAID" && "bg-emerald-50 text-emerald-600",
-                                p.status === "PENDING" && "bg-amber-50 text-amber-600",
-                                (p.status === "EXPIRED" || p.status === "FAILED") &&
-                                  "bg-red-50 text-red-500"
+                            <>
+                              <span
+                                className={cn(
+                                  "rounded-full px-2 py-0.5 text-[9px] font-extrabold",
+                                  p.status === "PAID" && "bg-emerald-50 text-emerald-600",
+                                  p.status === "PENDING" && "bg-amber-50 text-amber-600",
+                                  (p.status === "EXPIRED" || p.status === "FAILED") &&
+                                    "bg-red-50 text-red-500"
+                                )}
+                              >
+                                {paymentStatusLabel(p.status)}
+                              </span>
+                              {p.status !== "PAID" && p.reference && (
+                                <span
+                                  className="max-w-[110px] truncate rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[9px] font-bold text-slate-400"
+                                  title={`Kode referensi: ${p.reference}`}
+                                >
+                                  {p.reference}
+                                </span>
                               )}
-                            >
-                              {paymentStatusLabel(p.status)}
-                            </span>
+                            </>
                           );
                         })()}
                       <span className="text-[9px] font-semibold text-slate-400">
@@ -334,14 +382,76 @@ export default function SellerDashboardScreen({
                     </div>
                   </div>
 
-                  {order.status === "PENDING" && (
-                    <Button
-                      onClick={() => updateOrderStatus(order.id, "PROCESSING")}
-                      className="press mt-3 h-9 w-full rounded-xl bg-primary text-xs font-extrabold shadow-md shadow-teal-500/25 hover:bg-teal-700"
-                    >
-                      ✅ Terima Pesanan
-                    </Button>
-                  )}
+                  {/* Verifikasi bukti bayar QRIS manual */}
+                  {order.paymentMethod === "QRIS" && order.status !== "CANCELLED" &&
+                    (() => {
+                      const p = order.payments?.[0];
+                      if (p?.status === "PENDING") {
+                        return (
+                          <div className="mt-3 rounded-2xl border-2 border-amber-200 bg-amber-50 p-3">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <p className="text-[9px] font-bold uppercase tracking-wide text-amber-600">
+                                  Kode referensi dari pembeli
+                                </p>
+                                <p className="break-all font-mono text-xs font-extrabold text-amber-900">
+                                  {p.reference}
+                                </p>
+                              </div>
+                              <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[9px] font-extrabold text-amber-700">
+                                Cek mutasi/e-walletmu
+                              </span>
+                            </div>
+                            <div className="mt-2.5 grid grid-cols-2 gap-2">
+                              <Button
+                                onClick={() => verifyPayment(p.id, "verify")}
+                                className="press h-9 rounded-xl bg-emerald-500 text-[11px] font-extrabold text-white shadow-md shadow-emerald-500/25 hover:bg-emerald-600"
+                              >
+                                ✅ Terima Bayar
+                              </Button>
+                              <Button
+                                onClick={() => verifyPayment(p.id, "reject")}
+                                className="press h-9 rounded-xl border-2 border-red-200 bg-white text-[11px] font-extrabold text-red-500 hover:bg-red-50"
+                              >
+                                ✖ Tolak Bukti
+                              </Button>
+                            </div>
+                          </div>
+                        );
+                      }
+                      if (p?.status === "PAID") {
+                        return (
+                          <p className="mt-2 text-right text-[9px] font-bold text-emerald-500">
+                            Kode terverifikasi: <span className="font-mono">{p.reference}</span>
+                          </p>
+                        );
+                      }
+                      if (!p && order.status === "PENDING") {
+                        return (
+                          <p className="mt-2 text-[9px] font-semibold text-violet-400">
+                            Menunggu pembeli kirim kode referensi pembayaran QRIS…
+                          </p>
+                        );
+                      }
+                      return null;
+                    })()}
+
+                  {order.status === "PENDING" && (() => {
+                    const p = order.payments?.[0];
+                    const qrisBlocked =
+                      order.paymentMethod === "QRIS" && p?.status !== "PAID";
+                    return (
+                      <Button
+                        onClick={() => updateOrderStatus(order.id, "PROCESSING")}
+                        disabled={qrisBlocked}
+                        className="press mt-3 h-9 w-full rounded-xl bg-primary text-xs font-extrabold shadow-md shadow-teal-500/25 hover:bg-teal-700 disabled:opacity-40"
+                      >
+                        {qrisBlocked
+                          ? "⏳ Verifikasi Pembayaran Dulu"
+                          : "✅ Terima Pesanan"}
+                      </Button>
+                    );
+                  })()}
                   {order.status === "PROCESSING" && (
                     <Button
                       onClick={() => updateOrderStatus(order.id, "COMPLETED")}

@@ -39,8 +39,11 @@ export async function GET(req: NextRequest) {
           select: {
             id: true,
             gateway: true,
+            reference: true,
             amount: true,
             status: true,
+            verifiedAt: true,
+            rejectNote: true,
             paidAt: true,
             expiresAt: true,
             createdAt: true,

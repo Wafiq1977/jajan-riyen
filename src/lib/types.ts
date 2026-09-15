@@ -2,13 +2,16 @@ export type OrderStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "CANCELLED";
 export type PaymentMethod = "TUNAI" | "QRIS";
 export type PaymentStatus = "PENDING" | "PAID" | "EXPIRED" | "FAILED";
 
-/** Data pembayaran QRIS yang aman tampil di frontend */
+/** Data pembayaran QRIS manual yang aman tampil di frontend */
 export interface PaymentInfo {
   id: string;
   orderId: string;
-  gateway: string; // "midtrans" | "demo"
+  gateway: string; // "manual" (kode referensi)
+  reference?: string | null; // kode referensi transaksi dari pembeli
   amount: number;
   status: PaymentStatus;
+  verifiedAt?: string | null; // waktu penjual verifikasi
+  rejectNote?: string | null; // alasan penolakan penjual
   qrImageUrl?: string | null;
   payUrl?: string | null;
   paidAt: string | null;
