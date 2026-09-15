@@ -84,6 +84,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ payment: await db.payment.findUnique({ where: { id: latest.id }, select: SAFE_SELECT }) });
     }
 
+    // Anti dobel-pakai bukti: kode referensi yang sama tidak boleh menempel
+    // di pesanan lain yang masih menunggu verifikasi / sudah terbayar.
+    const dup = await db.payment.findFirst({
+      where: { reference: code, status: { in: ["PENDING", "PAID"] }, orderId: { not: order.id } },
+      select: { id: true },
+    });
+    if (dup) {
+      return NextResponse.json(
+        { error: "Kode referensi ini sudah tercatat di pesanan lain. Setiap transaksi punya kode unik — salin kode dari pembayaran untuk pesanan ini." },
+        { status: 409 }
+      );
+    }
+
     const payment = await db.payment.create({
       data: {
         orderId: order.id,

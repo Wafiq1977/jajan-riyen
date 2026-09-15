@@ -562,3 +562,25 @@ Stage Summary:
 - Pengaman inti: verifikasi hanya oleh pemilik toko, pesanan QRIS hanya bisa diproses setelah bukti diverifikasi, anti dobel-kirim & anti regresi
 - Data uji bersisa: order JR-86R7B7 (PROCESSING, PAID) di Geprek Mercon Bu Rina — bukti alur berjalan; layar & API terverifikasi end-to-end via browser
 - Commit + push mengikuti; push manual mungkin perlu oleh user (kredensial GitHub sandbox masih belum ada)
+
+---
+Task ID: 22
+Agent: Z.ai Code (main)
+Task: UI/UX QRIS manual "seperti sebelumnya" — saat klik metode QRIS di checkout/keranjang, QRIS uploadan penjual muncul di bawahnya + kolom input Nomor Referensi/Kode Transaksi (bukti bayar dikirim langsung saat Buat Pesanan)
+
+Work Log:
+- Pelajari implementasi Task 21 (commit 14dd721): QRIS manual sudah jalan tetapi kode referensi hanya bisa dikirim SETELAH pesanan dibuat (layar qris-payment terpisah). User minta UX seperti pra-Midtrans: semua inline di checkout saat metode QRIS diklik
+- widgets.tsx: komponen bersama QrisRefInput — kartu "Nomor Referensi / Kode Transaksi" (label KeyRound, helper "sudah bayar? salin kode dari riwayat transaksi", input mono paste-friendly, catatan opsional "boleh dikosongkan, kirim lewat menu Pesanan")
+- checkout-screen: state refCode; saat QRIS dipilih → QrisPanel (gambar QRIS penjual + NMID) lalu QrisRefInput di bawahnya + banner instruksi diperbarui ("tempel kode referensimu sebelum menekan Buat Pesanan"); validasi klien 4-64 char; body order kini mengirim referenceCode
+- cart-screen: pola sama di dalam AnimatePresence (QRIS + kolom referensi muncul beranimasi saat metode QRIS dipilih); referenceCode ikut di body order
+- API /api/orders POST: terima referenceCode opsional (trim, 4-64 char, 400 bila invalid); QRIS wajib store.qrisEnabled/qrisImageUrl (400); DuplicateReferenceError di dalam $transaction — kode referensi yang sama tidak boleh menempel di pesanan lain yang PENDING/PAID (409, transaksi rollback); bila QRIS+refCode → tx.payment.create langsung (gateway manual, PENDING, amount=totalPrice); respons order kini include payments
+- API /api/payment/create: guard anti dobel-pakai bukti yang sama (reference sama, status PENDING/PAID, order lain → 409)
+- Uji API: order QRIS+ref → payment PENDING menempel; dobel kode → 409 dgn pesan jelas; QRIS tanpa kode → order tanpa payment (bayar nanti via menu Pesanan); kode <4 char → 400. Order uji dibersihkan
+- Verifikasi browser end-to-end (2 akun): pembeli 6287836049981 → checkout Geprek Original Level 1 → klik QRIS → QRIS resmi Bu Rina + NMID tampil, kolom "Nomor Referensi / Kode Transaksi" di bawahnya (screenshot tool-results/qris-ref-checkout.png) → isi TP-240915-77821 → Buat Pesanan → layar "Menunggu Verifikasi" + kode referensimu (tool-results/qris-menunggu-verifikasi.png); login Rina → dashboard: kartu verifikasi dgn kode + tombol Terima Pesanan terkunci (⏳) → ✅ Terima Bayar → "Pembayaran Berhasil / Kode terverifikasi: TP-240915-77821" → ✅ Terima Pesanan → Diproses (tool-results/penjual-verifikasi-kode.png, penjual-terverifikasi.png); API konfirmasi: order PROCESSING, payment PAID verifiedAt terisi
+- Keranjang: pola sama terverifikasi visual (tool-results/qris-ref-cart.png, qris-ref-cart2.png); lint bersih; console & dev.log tanpa error
+
+Stage Summary:
+- UX QRIS manual kini SATU LAYAR di checkout/keranjang: klik QRIS → gambar QRIS uploadan penjual (+NMID) muncul di bawahnya → kolom nomor referensi/kode transaksi di bawah QRIS → isi → Buat Pesanan → bukti langsung menempel & status "Menunggu Verifikasi" (tanpa layar tambahan)
+- Kode kosong tetap sah: order dibuat tanpa bukti, pembeli kirim belakangan via "Bayar QRIS" di menu Pesanan (layar qris-payment lama tetap berfungsi utk jalur ini)
+- Pengaman baru: 1 kode referensi = 1 pesanan aktif (anti dobel-pakai bukti), QRIS hanya bila penjual aktifkan, validasi panjang 4-64
+- File berubah: api/orders/route.ts, api/payment/create/route.ts, widgets.tsx (QrisRefInput), checkout-screen.tsx, cart-screen.tsx

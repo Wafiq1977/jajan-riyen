@@ -60,13 +60,17 @@ export async function GET(req: NextRequest) {
   }
 }
 
+/** Dilempar saat kode referensi sudah tercatat di pesanan lain (anti dobel-pakai bukti). */
+class DuplicateReferenceError extends Error {}
+
 export async function POST(req: NextRequest) {
   try {
-    const { userId, storeId, paymentMethod, items } = (await req.json()) as {
+    const { userId, storeId, paymentMethod, items, referenceCode } = (await req.json()) as {
       userId: string;
       storeId?: string;
       paymentMethod: string;
       items: IncomingItem[];
+      referenceCode?: string;
     };
 
     if (!userId || !items || !Array.isArray(items) || items.length === 0) {
@@ -77,6 +81,17 @@ export async function POST(req: NextRequest) {
     }
     if (paymentMethod !== "TUNAI" && paymentMethod !== "QRIS") {
       return NextResponse.json({ error: "Metode pembayaran tidak valid" }, { status: 400 });
+    }
+
+    // QRIS manual — bukti bayar opsional saat checkout: kode referensi transaksi
+    // dari e-wallet/m-banking. Bila dikosongkan, pembeli bisa mengirimnya belakangan
+    // lewat layar bayar QRIS (menu Pesanan).
+    const refCode = (referenceCode || "").trim();
+    if (refCode && (refCode.length < 4 || refCode.length > 64)) {
+      return NextResponse.json(
+        { error: "Kode referensi harus 4–64 karakter — salin dari bukti transaksi e-wallet/m-banking-mu." },
+        { status: 400 }
+      );
     }
 
     // Normalize quantities
@@ -136,12 +151,36 @@ export async function POST(req: NextRequest) {
 
     const orderStoreId = products[0].storeId;
 
+    // QRIS manual hanya boleh dipakai bila penjual mengaktifkan QRIS
+    if (paymentMethod === "QRIS") {
+      const orderStore = await db.store.findUnique({
+        where: { id: orderStoreId },
+        select: { qrisEnabled: true, qrisImageUrl: true },
+      });
+      if (!orderStore || (!orderStore.qrisEnabled && !orderStore.qrisImageUrl)) {
+        return NextResponse.json(
+          { error: "Penjual belum mengaktifkan QRIS. Gunakan metode TUNAI atau hubungi penjual." },
+          { status: 400 }
+        );
+      }
+    }
+
     const order = await db.$transaction(async (tx) => {
       const totalPrice = products.reduce(
         (sum, p) => sum + p.price * qtyByProduct.get(p.id)!,
         0
       );
       const quantity = [...qtyByProduct.values()].reduce((a, b) => a + b, 0);
+
+      // Anti dobel-pakai bukti: satu kode referensi hanya boleh menempel
+      // pada satu pesanan yang masih aktif/terbayar (cek atomik di dalam transaksi).
+      if (refCode) {
+        const dup = await tx.payment.findFirst({
+          where: { reference: refCode, status: { in: ["PENDING", "PAID"] } },
+          select: { id: true },
+        });
+        if (dup) throw new DuplicateReferenceError();
+      }
 
       const created = await tx.order.create({
         data: {
@@ -174,11 +213,42 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // Bukti bayar QRIS manual — langsung menempel saat pesanan dibuat:
+      // status PENDING (menunggu verifikasi penjual), lalu penjual konfirmasi
+      // via PATCH /api/payment/[id].
+      if (paymentMethod === "QRIS" && refCode) {
+        await tx.payment.create({
+          data: {
+            orderId: created.id,
+            gateway: "manual",
+            reference: refCode,
+            amount: totalPrice,
+            status: "PENDING",
+          },
+        });
+      }
+
       return created;
     });
 
-    return NextResponse.json({ order });
+    // Kembalikan order lengkap dgn payment (agar UI langsung tahu status bukti)
+    const full = await db.order.findUnique({
+      where: { id: order.id },
+      include: {
+        items: true,
+        store: true,
+        payments: { orderBy: { createdAt: "desc" } },
+      },
+    });
+
+    return NextResponse.json({ order: full });
   } catch (error) {
+    if (error instanceof DuplicateReferenceError) {
+      return NextResponse.json(
+        { error: "Kode referensi ini sudah tercatat di pesanan lain. Setiap transaksi punya kode unik — salin kode dari pembayaran untuk pesanan ini." },
+        { status: 409 }
+      );
+    }
     console.error("Create order error:", error);
     return NextResponse.json({ error: "Terjadi kesalahan server" }, { status: 500 });
   }

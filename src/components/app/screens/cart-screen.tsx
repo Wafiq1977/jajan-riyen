@@ -18,7 +18,7 @@ import { formatRupiah, discountPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { cartTotalPrice, cartTotalQty, useCartStore } from "@/lib/app-store";
-import { QrisPanel } from "../widgets";
+import { QrisPanel, QrisRefInput } from "../widgets";
 import { ProductThumb, EmptyState } from "../shared";
 
 export default function CartScreen({
@@ -32,6 +32,7 @@ export default function CartScreen({
 }) {
   const { items, storeId, storeName, setQuantity, removeItem } = useCartStore();
   const [method, setMethod] = useState<PaymentMethod>("TUNAI");
+  const [refCode, setRefCode] = useState(""); // bukti bayar QRIS manual (opsional)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [store, setStore] = useState<Store | null>(null);
@@ -68,6 +69,11 @@ export default function CartScreen({
 
   const submit = async () => {
     if (!user || items.length === 0 || submitting || !storeId) return;
+    const code = refCode.trim();
+    if (method === "QRIS" && code && (code.length < 4 || code.length > 64)) {
+      setError("Kode referensi harus 4–64 karakter — salin dari bukti transaksi e-wallet/m-banking-mu.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -79,6 +85,7 @@ export default function CartScreen({
           storeId,
           paymentMethod: method,
           items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
+          ...(method === "QRIS" && code ? { referenceCode: code } : {}),
         }),
       });
       const data = await res.json();
@@ -260,6 +267,8 @@ export default function CartScreen({
                 amount={total}
                 sellerQris={store?.qrisEnabled ? { imageUrl: store.qrisImageUrl, code: store.qrisCode } : null}
               />
+              {/* Kolom nomor referensi / kode transaksi — bukti bayar QRIS manual */}
+              <QrisRefInput value={refCode} onChange={setRefCode} />
             </motion.div>
           )}
         </AnimatePresence>

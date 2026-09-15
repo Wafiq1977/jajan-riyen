@@ -15,6 +15,8 @@ import {
   LocateFixed,
   Loader2,
   AlertTriangle,
+  KeyRound,
+  Info,
 } from "lucide-react";
 import QRCodeLib from "qrcode";
 import {
@@ -452,6 +454,57 @@ function ScanLineIcon() {
       <path d="M7 21H5a2 2 0 0 1-2-2v-2" />
       <line x1="7" y1="12" x2="17" y2="12" />
     </svg>
+  );
+}
+
+/* ---------------- input kode referensi QRIS manual (shared checkout + cart) ---------------- */
+
+/**
+ * Kolom input nomor referensi / kode transaksi — bukti pembayaran QRIS manual.
+ * Muncul persis di bawah QRIS penjual saat pembeli memilih metode QRIS.
+ * Opsional: boleh dikosongkan, pembeli bisa kirim bukti belakangan lewat menu Pesanan.
+ */
+export function QrisRefInput({
+  value,
+  onChange,
+  onSubmit,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onSubmit?: () => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="mt-3 rounded-3xl border border-teal-100 bg-white p-4 text-left card-soft">
+      <label
+        htmlFor="qris-ref-input"
+        className="flex items-center gap-1.5 text-[11px] font-extrabold text-foreground"
+      >
+        <KeyRound className="h-3.5 w-3.5 text-primary" />
+        Nomor Referensi / Kode Transaksi
+      </label>
+      <p className="mt-0.5 text-[10px] font-medium leading-relaxed text-slate-400">
+        Sudah bayar via QRIS? Salin kode referensi dari riwayat transaksi e-wallet /
+        m-banking-mu sebagai bukti — akan dicek langsung oleh penjual.
+      </p>
+      <input
+        id="qris-ref-input"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onSubmit?.()}
+        placeholder="Contoh: TP-24091514321 / REF987654321"
+        maxLength={64}
+        autoComplete="off"
+        disabled={disabled}
+        className="mt-2.5 h-11 w-full rounded-xl border-2 border-border bg-slate-50/60 px-3.5 font-mono text-sm font-bold tracking-wide text-foreground outline-none transition-colors placeholder:font-sans placeholder:font-normal placeholder:text-slate-300 focus:border-primary focus:bg-white disabled:opacity-50"
+      />
+      <p className="mt-2 flex items-start gap-1.5 text-[9px] font-semibold leading-relaxed text-slate-300">
+        <Info className="mt-px h-3 w-3 shrink-0" />
+        Belum bayar? Boleh dikosongkan dulu — kamu bisa kirim kode referensi lewat menu
+        Pesanan setelah pesanan dibuat.
+      </p>
+    </div>
   );
 }
 

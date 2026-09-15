@@ -14,7 +14,7 @@ import type { PaymentMethod, Product, Store, User } from "@/lib/types";
 import { formatRupiah, discountPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { QrisPanel } from "../widgets";
+import { QrisPanel, QrisRefInput } from "../widgets";
 import { ProductThumb } from "../shared";
 
 export default function CheckoutScreen({
@@ -34,6 +34,7 @@ export default function CheckoutScreen({
   const [store, setStore] = useState<Store | null>(null);
   const [qty, setQty] = useState(1);
   const [method, setMethod] = useState<PaymentMethod>("TUNAI");
+  const [refCode, setRefCode] = useState(""); // bukti bayar QRIS manual (opsional)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -63,6 +64,11 @@ export default function CheckoutScreen({
 
   const submit = async () => {
     if (!user || !product || submitting) return;
+    const code = refCode.trim();
+    if (method === "QRIS" && code && (code.length < 4 || code.length > 64)) {
+      setError("Kode referensi harus 4–64 karakter — salin dari bukti transaksi e-wallet/m-banking-mu.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
@@ -74,6 +80,7 @@ export default function CheckoutScreen({
           storeId,
           paymentMethod: method,
           items: [{ productId, quantity: qty }],
+          ...(method === "QRIS" && code ? { referenceCode: code } : {}),
         }),
       });
       const data = await res.json();
@@ -219,14 +226,16 @@ export default function CheckoutScreen({
               amount={total}
               sellerQris={store.qrisEnabled ? { imageUrl: store.qrisImageUrl, code: store.qrisCode } : null}
             />
+            {/* Kolom nomor referensi / kode transaksi — bukti bayar QRIS manual */}
+            <QrisRefInput value={refCode} onChange={setRefCode} />
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               className="mt-3 flex items-start gap-2.5 rounded-2xl bg-teal-50/70 p-3.5 text-[11px] font-medium leading-relaxed text-teal-800"
             >
               <QrCode className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
-              Setelah pesanan dibuat, scan QRIS penjual di atas, bayar sesuai total,
-              lalu <b>masukkan kode referensi transaksi</b> sebagai bukti bayar.
+              Scan QRIS {store.name} di atas, bayar sesuai total, lalu tempel kode
+              referensimu di kolom di atas sebelum menekan <b>&nbsp;Buat Pesanan</b>.
               Penjual akan mengecek dan mengonfirmasi pembayaranmu secara manual.
             </motion.div>
           </>
