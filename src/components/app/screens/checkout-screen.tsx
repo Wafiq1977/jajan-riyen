@@ -14,7 +14,7 @@ import type { PaymentMethod, Product, Store, User } from "@/lib/types";
 import { formatRupiah, discountPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { QrisPanel, QrisRefInput } from "../widgets";
+import { QrisPanel, QrisRefInput, OrderNoteInput } from "../widgets";
 import { ProductThumb } from "../shared";
 
 export default function CheckoutScreen({
@@ -35,6 +35,7 @@ export default function CheckoutScreen({
   const [qty, setQty] = useState(1);
   const [method, setMethod] = useState<PaymentMethod>("TUNAI");
   const [refCode, setRefCode] = useState(""); // bukti bayar QRIS manual (opsional)
+  const [note, setNote] = useState(""); // catatan pesanan — request khusus ke penjual (opsional)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -81,6 +82,7 @@ export default function CheckoutScreen({
           paymentMethod: method,
           items: [{ productId, quantity: qty }],
           ...(method === "QRIS" && code ? { referenceCode: code } : {}),
+          ...(note.trim() ? { note: note.trim() } : {}),
         }),
       });
       const data = await res.json();
@@ -178,6 +180,11 @@ export default function CheckoutScreen({
                   <Plus className="h-4 w-4" />
                 </button>
               </div>
+            </div>
+
+            {/* Catatan pesanan — request khusus pembeli ke penjual, di bawah pengaturan jumlah */}
+            <div className="mt-4 border-t border-dashed border-border pt-4">
+              <OrderNoteInput value={note} onChange={setNote} />
             </div>
           </motion.div>
         ) : (

@@ -20,6 +20,7 @@ import {
   ImagePlus,
   CheckCircle2,
   AlertTriangle,
+  StickyNote,
 } from "lucide-react";
 import {
   Dialog,
@@ -338,6 +339,21 @@ export default function SellerDashboardScreen({
                       </div>
                     ))}
                   </div>
+
+                  {/* Catatan pesanan dari pembeli — request khusus saat menyiapkan makanan */}
+                  {order.note && (
+                    <div className="mt-2.5 flex items-start gap-2 rounded-xl border-2 border-amber-200 bg-amber-50 px-3 py-2">
+                      <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-extrabold uppercase tracking-wide text-amber-600">
+                          Catatan Pembeli
+                        </p>
+                        <p className="break-words text-[11px] font-bold leading-snug text-amber-900">
+                          {order.note}
+                        </p>
+                      </div>
+                    </div>
+                  )}
 
                   <div className="mt-2.5 flex items-center justify-between">
                     <div className="flex flex-wrap items-center gap-1.5">

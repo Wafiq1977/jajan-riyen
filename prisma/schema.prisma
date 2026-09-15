@@ -64,19 +64,21 @@ model Product {
 }
 
 model Order {
-  id            String   @id @default(cuid())
-  code          String   @unique
+  id            String    @id @default(cuid())
+  code          String    @unique
   userId        String
-  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user          User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   storeId       String
-  store         Store    @relation(fields: [storeId], references: [id])
+  store         Store     @relation(fields: [storeId], references: [id])
   items         OrderItem[]
   quantity      Int
   totalPrice    Int
-  paymentMethod String   @default("TUNAI")
-  status        String   @default("PENDING")
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  paymentMethod String    @default("TUNAI")
+  status        String    @default("PENDING")
+  note          String? // catatan pesanan dari pembeli (contoh: "kopi tanpa gula, pedas level 3")
+  buyerDeletedAt DateTime? // soft delete riwayat oleh pembeli — pesanan tetap terlihat oleh penjual
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   payments      Payment[]
 }
 

@@ -2,10 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
-import { RefreshCw, ReceiptText, QrCode } from "lucide-react";
+import { RefreshCw, ReceiptText, QrCode, Trash2, StickyNote } from "lucide-react";
 import type { Order, OrderStatus, User } from "@/lib/types";
 import { formatRupiah, formatDateTime, paymentStatusLabel } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   StatusBadge,
   PaymentBadge,
@@ -37,6 +47,9 @@ export default function OrdersScreen({
   const [orders, setOrders] = useState<Order[] | null>(null);
   const [tab, setTab] = useState<(typeof TABS)[number]["key"]>("ALL");
   const [refreshing, setRefreshing] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Order | null>(null);
+  const [clearAllOpen, setClearAllOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const load = useCallback(
     async (showSpinner = false) => {
@@ -71,6 +84,41 @@ export default function OrdersScreen({
       body: JSON.stringify({ status: "CANCELLED" }),
     });
     load();
+  };
+
+  // Riwayat hanya bisa dihapus bila pesanan sudah selesai / dibatalkan
+  const isDeletable = useCallback(
+    (o: Order) => o.status === "COMPLETED" || o.status === "CANCELLED",
+    []
+  );
+  const deletableCount = useMemo(() => (orders ?? []).filter(isDeletable).length, [orders, isDeletable]);
+
+  const deleteOrder = async (id: string) => {
+    if (!user || deleting) return;
+    setDeleting(true);
+    try {
+      await fetch(`/api/orders/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: user.id }),
+      });
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+      load();
+    }
+  };
+
+  const clearHistory = async () => {
+    if (!user || deleting) return;
+    setDeleting(true);
+    try {
+      await fetch(`/api/orders?userId=${user.id}`, { method: "DELETE" });
+    } finally {
+      setDeleting(false);
+      setClearAllOpen(false);
+      load();
+    }
   };
 
   return (
@@ -123,8 +171,16 @@ export default function OrdersScreen({
             );
           })}
           <button
+            onClick={() => setClearAllOpen(true)}
+            disabled={deletableCount === 0}
+            className="press ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-red-100 bg-white text-red-400 transition-colors hover:border-red-200 hover:text-red-500 disabled:cursor-not-allowed disabled:opacity-30"
+            aria-label={`Hapus riwayat pesanan (${deletableCount} bisa dihapus)`}
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+          <button
             onClick={() => load(true)}
-            className="press ml-auto flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-teal-100 bg-white text-teal-600"
+            className="press flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-teal-100 bg-white text-teal-600"
             aria-label="Muat ulang"
           >
             <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} />
@@ -191,6 +247,21 @@ export default function OrdersScreen({
                   ))}
                 </div>
 
+                {/* Catatan pesanan dari pembeli */}
+                {order.note && (
+                  <div className="mx-4 mt-2 flex items-start gap-2 rounded-xl border border-amber-100 bg-amber-50/70 px-2.5 py-2">
+                    <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-extrabold uppercase tracking-wide text-amber-600">
+                        Catatan Pesanan
+                      </p>
+                      <p className="break-words text-[11px] font-medium leading-snug text-amber-900">
+                        {order.note}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
                 <div className="flex flex-wrap items-center gap-1.5 px-4 pb-3 pt-2">
                   <PaymentBadge method={order.paymentMethod} />
                   <span className="rounded-full bg-slate-50 px-2 py-0.5 font-mono text-[9px] font-bold text-slate-500">
@@ -225,6 +296,16 @@ export default function OrdersScreen({
                           className="press rounded-full border-2 border-red-100 bg-red-50 px-3.5 py-2 text-xs font-extrabold text-red-500 hover:bg-red-100"
                         >
                           Batalkan
+                        </button>
+                      )}
+                      {isDeletable(order) && (
+                        <button
+                          onClick={() => setDeleteTarget(order)}
+                          className="press flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-red-100 bg-white text-red-400 hover:bg-red-50 hover:text-red-500"
+                          aria-label={`Hapus pesanan ${order.code} dari riwayat`}
+                          title="Hapus dari riwayat"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       )}
                     </div>
@@ -279,6 +360,54 @@ export default function OrdersScreen({
           </div>
         )}
       </div>
+
+      {/* Dialog konfirmasi hapus satu pesanan dari riwayat */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(o) => !o && setDeleteTarget(null)}>
+        <AlertDialogContent className="mx-auto max-w-[340px] rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus dari riwayat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Pesanan <span className="font-mono font-bold">{deleteTarget?.code}</span> di{" "}
+              {deleteTarget?.store?.name} akan dihapus dari daftar pesananmu.
+              Riwayatnya tetap tersimpan di penjual sebagai catatan transaksi.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-10 rounded-xl text-xs font-extrabold">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => deleteTarget && deleteOrder(deleteTarget.id)}
+              disabled={deleting}
+              className="h-10 rounded-xl bg-red-500 text-xs font-extrabold text-white hover:bg-red-600"
+            >
+              {deleting ? "Menghapus…" : "Ya, Hapus"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Dialog konfirmasi hapus semua riwayat */}
+      <AlertDialog open={clearAllOpen} onOpenChange={setClearAllOpen}>
+        <AlertDialogContent className="mx-auto max-w-[340px] rounded-3xl">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus semua riwayat?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {deletableCount} pesanan yang sudah selesai / dibatalkan akan dihapus dari
+              daftar pesananmu. Pesanan yang masih aktif tidak ikut terhapus, dan
+              penjual tetap menyimpan catatan transaksinya.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="h-10 rounded-xl text-xs font-extrabold">Batal</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={clearHistory}
+              disabled={deleting || deletableCount === 0}
+              className="h-10 rounded-xl bg-red-500 text-xs font-extrabold text-white hover:bg-red-600"
+            >
+              {deleting ? "Menghapus…" : `Ya, Hapus ${deletableCount} Pesanan`}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

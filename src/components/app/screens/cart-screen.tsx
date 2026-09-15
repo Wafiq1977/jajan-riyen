@@ -18,7 +18,7 @@ import { formatRupiah, discountPercent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { cartTotalPrice, cartTotalQty, useCartStore } from "@/lib/app-store";
-import { QrisPanel, QrisRefInput } from "../widgets";
+import { QrisPanel, QrisRefInput, OrderNoteInput } from "../widgets";
 import { ProductThumb, EmptyState } from "../shared";
 
 export default function CartScreen({
@@ -33,6 +33,7 @@ export default function CartScreen({
   const { items, storeId, storeName, setQuantity, removeItem } = useCartStore();
   const [method, setMethod] = useState<PaymentMethod>("TUNAI");
   const [refCode, setRefCode] = useState(""); // bukti bayar QRIS manual (opsional)
+  const [note, setNote] = useState(""); // catatan pesanan — request khusus ke penjual (opsional)
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [store, setStore] = useState<Store | null>(null);
@@ -86,6 +87,7 @@ export default function CartScreen({
           paymentMethod: method,
           items: items.map((i) => ({ productId: i.productId, quantity: i.quantity })),
           ...(method === "QRIS" && code ? { referenceCode: code } : {}),
+          ...(note.trim() ? { note: note.trim() } : {}),
         }),
       });
       const data = await res.json();
@@ -221,6 +223,11 @@ export default function CartScreen({
             );
           })}
         </AnimatePresence>
+      </div>
+
+      {/* Catatan pesanan — request khusus pembeli ke penjual (sama seperti checkout) */}
+      <div className="mt-4 px-5">
+        <OrderNoteInput value={note} onChange={setNote} />
       </div>
 
       {/* Payment method */}

@@ -29,7 +29,9 @@ export async function GET(req: NextRequest) {
     }
 
     const orders = await db.order.findMany({
-      where: userId ? { userId } : { storeId: storeId! },
+      where: userId
+        ? { userId, buyerDeletedAt: null } // riwayat pembeli: sembunyikan yang sudah dihapus pembeli
+        : { storeId: storeId! }, // dashboard penjual tetap melihat semua pesanan toko
       include: {
         items: true,
         store: true,
@@ -65,12 +67,13 @@ class DuplicateReferenceError extends Error {}
 
 export async function POST(req: NextRequest) {
   try {
-    const { userId, storeId, paymentMethod, items, referenceCode } = (await req.json()) as {
+    const { userId, storeId, paymentMethod, items, referenceCode, note } = (await req.json()) as {
       userId: string;
       storeId?: string;
       paymentMethod: string;
       items: IncomingItem[];
       referenceCode?: string;
+      note?: string;
     };
 
     if (!userId || !items || !Array.isArray(items) || items.length === 0) {
@@ -93,6 +96,16 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       );
     }
+
+    // Catatan pesanan dari pembeli (request khusus ke penjual) — opsional, maks 200 karakter
+    const rawNote = (note || "").trim();
+    if (rawNote.length > 200) {
+      return NextResponse.json(
+        { error: "Catatan pesanan maksimal 200 karakter." },
+        { status: 400 }
+      );
+    }
+    const orderNote = rawNote || null;
 
     // Normalize quantities
     const normalized = items
@@ -191,6 +204,7 @@ export async function POST(req: NextRequest) {
           totalPrice,
           paymentMethod,
           status: "PENDING",
+          ...(orderNote ? { note: orderNote } : {}),
           items: {
             create: products.map((p) => ({
               product: { connect: { id: p.id } },
@@ -250,6 +264,37 @@ export async function POST(req: NextRequest) {
       );
     }
     console.error("Create order error:", error);
+    return NextResponse.json({ error: "Terjadi kesalahan server" }, { status: 500 });
+  }
+}
+
+/**
+ * DELETE /api/orders?userId=xxx — hapus SEMUA riwayat pesanan pembeli.
+ * Soft delete (buyerDeletedAt): pesanan menghilang dari riwayat pembeli,
+ * tetapi tetap terlihat di dashboard penjual sebagai catatan transaksi.
+ * Hanya pesanan yang sudah selesai/dibatalkan yang bisa dihapus.
+ */
+export async function DELETE(req: NextRequest) {
+  try {
+    const { searchParams } = new URL(req.url);
+    const userId = searchParams.get("userId");
+
+    if (!userId) {
+      return NextResponse.json({ error: "userId wajib diisi" }, { status: 400 });
+    }
+
+    const result = await db.order.updateMany({
+      where: {
+        userId,
+        status: { in: ["COMPLETED", "CANCELLED"] },
+        buyerDeletedAt: null,
+      },
+      data: { buyerDeletedAt: new Date() },
+    });
+
+    return NextResponse.json({ deleted: result.count });
+  } catch (error) {
+    console.error("Clear order history error:", error);
     return NextResponse.json({ error: "Terjadi kesalahan server" }, { status: 500 });
   }
 }

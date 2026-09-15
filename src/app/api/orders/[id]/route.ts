@@ -42,6 +42,56 @@ export async function GET(
   }
 }
 
+/**
+ * DELETE /api/orders/[id] — hapus pesanan dari riwayat PEMBELI (soft delete).
+ * Body: { userId }
+ *  • Hanya pemilik pesanan yang boleh menghapus (403 bila bukan).
+ *  • Hanya pesanan COMPLETED / CANCELLED yang bisa dihapus (409 bila masih aktif)
+ *    — pesanan PENDING dibatalkan dulu lewat tombol "Batalkan".
+ *  • buyerDeletedAt dicatat: pesanan hilang dari riwayat pembeli, tetapi tetap
+ *    terlihat di dashboard penjual (catatan transaksi tetap utuh).
+ */
+export async function DELETE(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id } = await params;
+    const { userId } = await req.json().catch(() => ({ userId: null }));
+
+    if (!userId) {
+      return NextResponse.json({ error: "userId wajib diisi" }, { status: 400 });
+    }
+
+    const existing = await db.order.findUnique({ where: { id } });
+    if (!existing) {
+      return NextResponse.json({ error: "Pesanan tidak ditemukan" }, { status: 404 });
+    }
+    if (existing.userId !== userId) {
+      return NextResponse.json(
+        { error: "Kamu tidak punya akses untuk menghapus pesanan ini" },
+        { status: 403 }
+      );
+    }
+    if (!["COMPLETED", "CANCELLED"].includes(existing.status)) {
+      return NextResponse.json(
+        { error: "Pesanan masih aktif — batalkan pesanannya dulu bila ingin menghapus." },
+        { status: 409 }
+      );
+    }
+
+    await db.order.update({
+      where: { id },
+      data: { buyerDeletedAt: new Date() },
+    });
+
+    return NextResponse.json({ ok: true });
+  } catch (error) {
+    console.error("Delete order error:", error);
+    return NextResponse.json({ error: "Terjadi kesalahan server" }, { status: 500 });
+  }
+}
+
 export async function PATCH(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }

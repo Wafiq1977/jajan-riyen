@@ -87,6 +87,8 @@ export interface Order {
   totalPrice: number;
   paymentMethod: PaymentMethod;
   status: OrderStatus;
+  note?: string | null; // catatan pesanan dari pembeli (request khusus ke penjual)
+  buyerDeletedAt?: string | null; // soft delete riwayat oleh pembeli
   createdAt: string;
   updatedAt?: string;
   store: Store;

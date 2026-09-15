@@ -17,6 +17,7 @@ import {
   AlertTriangle,
   KeyRound,
   Info,
+  StickyNote,
 } from "lucide-react";
 import QRCodeLib from "qrcode";
 import {
@@ -504,6 +505,63 @@ export function QrisRefInput({
         Belum bayar? Boleh dikosongkan dulu — kamu bisa kirim kode referensi lewat menu
         Pesanan setelah pesanan dibuat.
       </p>
+    </div>
+  );
+}
+
+/* ---------------- input catatan pesanan (shared checkout + cart) ---------------- */
+
+const NOTE_MAX = 200;
+
+/**
+ * Kolom catatan pesanan — request khusus pembeli ke penjual
+ * (contoh: "kopi tanpa gula", "coffe panas hot", "pedas level 3").
+ * Opsional: boleh dikosongkan.
+ */
+export function OrderNoteInput({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  disabled?: boolean;
+}) {
+  return (
+    <div className="rounded-3xl border border-amber-100 bg-amber-50/40 p-4 text-left">
+      <div className="flex items-center justify-between gap-2">
+        <label
+          htmlFor="order-note-input"
+          className="flex items-center gap-1.5 text-[11px] font-extrabold text-foreground"
+        >
+          <StickyNote className="h-3.5 w-3.5 text-amber-500" />
+          Catatan Pesanan
+          <span className="font-semibold text-slate-400">(opsional)</span>
+        </label>
+        <span
+          className={cn(
+            "shrink-0 text-[9px] font-bold tabular-nums",
+            value.length >= NOTE_MAX ? "text-red-500" : "text-slate-300"
+          )}
+        >
+          {value.length}/{NOTE_MAX}
+        </span>
+      </div>
+      <p className="mt-0.5 text-[10px] font-medium leading-relaxed text-slate-400">
+        Minta sesuai keinginanmu, contoh: kopi tanpa gula, coffe panas hot, pedas level 3,
+        tanpa bawang — penjual akan membacanya saat menyiapkan pesanan.
+      </p>
+      <textarea
+        id="order-note-input"
+        value={value}
+        onChange={(e) => onChange(e.target.value.slice(0, NOTE_MAX))}
+        placeholder="Contoh: Kopi tanpa gula, Coffe panas hot"
+        rows={2}
+        maxLength={NOTE_MAX}
+        disabled={disabled}
+        className="mt-2.5 w-full resize-none rounded-xl border-2 border-amber-200/70 bg-white px-3.5 py-2.5 text-sm font-medium text-foreground outline-none transition-colors placeholder:text-slate-300 focus:border-amber-400 disabled:opacity-50"
+        aria-label="Catatan pesanan untuk penjual"
+      />
     </div>
   );
 }

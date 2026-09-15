@@ -601,3 +601,27 @@ Stage Summary:
 - GitHub repo Wafiq1977/jajan-riyen kini sinkron dgn lokal: versi terbaru = QRIS manual tanpa Midtrans (commit 0aacce1)
 - Vercel akan auto-deploy commit 0aacce1; saran: hapus env var MIDTRANS_* dari Vercel (sudah tidak dipakai)
 - Keamanan: sarankan user pertimbangkan rotasi PAT karena token pernah dibagikan lewat chat
+
+---
+Task ID: 24
+Agent: Z.ai Code (main)
+Task: (1) Fitur hapus riwayat pesanan khusus menu pembeli; (2) Fitur catatan pesanan di checkout di bawah pengaturan jumlah — agar pembeli bisa request khusus (contoh: "kopi tanpa gula, coffe panas hot") yang dibaca penjual
+
+Work Log:
+- Prisma schema: Order.note String? (catatan pembeli) + Order.buyerDeletedAt DateTime? (soft delete riwayat); db:push Neon sukses, Prisma client regen; restart dev server (client lama di memori error "Unknown argument note" → fixed setelah restart)
+- API /api/orders: POST terima note opsional (trim, maks 200 char, 400 bila lebih); GET dgn userId (pembeli) kini filter buyerDeletedAt:null — dashboard penjual (storeId) tetap melihat semua; DELETE handler baru ?userId= (hapus SEMUA riwayat: updateMany status COMPLETED/CANCELLED + buyerDeletedAt null → set buyerDeletedAt, return {deleted})
+- API /api/orders/[id]: DELETE handler baru (body {userId}) — cek kepemilikan (403), hanya COMPLETED/CANCELLED yang boleh (409 dgn pesan "batalkan dulu"), soft delete buyerDeletedAt; PATCH tidak berubah
+- widgets.tsx: OrderNoteInput — kartu amber "Catatan Pesanan (opsional)" + counter 0/200, textarea 2 baris placeholder "Contoh: Kopi tanpa gula, Coffe panas hot", helper contoh request; dipakai bersama checkout + cart
+- checkout-screen: OrderNoteInput diletakkan DI DALAM kartu produk tepat di bawah stepper Jumlah (sesuai permintaan user "di bawah pengaturan jumlah"), note.trim() ikut di body POST
+- cart-screen: OrderNoteInput setelah daftar item (sebelum metode pembayaran), note ikut di body POST
+- orders-screen: tombol trash per-kartu utk order COMPLETED/CANCELLED (aktif tidak bisa dihapus), tombol trash "Hapus riwayat" di bar tab (ml-auto, disabled bila 0 deletable, aria-label dgn count), 2 AlertDialog konfirmasi (satu order / semua riwayat) dgn keterangan "riwayat tetap tersimpan di penjual"; kartu order menampilkan blok amber "Catatan Pesanan" bila ada note
+- seller-dashboard-screen: blok amber "CATATAN PEMBELI" (border-2 amber) di kartu order — penjual baca request saat menyiapkan makanan
+- order-widgets OrderTrackCard: blok amber "Catatan Pesanan" — tampil di TrackSheet pembeli (Lacak & Barcode) DAN ScanDialog penjual
+- types.ts: Order.note + Order.buyerDeletedAt
+- Uji API menyeluruh: order+note tersimpan; DELETE user salah → 403; DELETE PENDING aktif → 409; DELETE setelah CANCELLED → 200; GET pembeli tidak lagi memuat order terhapus (21); GET penjual tetap memuat (soft delete benar); skrip uji clear-all (user sementara 3 order: COMPLETED+CANCELLED terhapus=2, PENDING tetap, penjual lihat 3) → PASS, skrip dihapus, user uji di-cleanup
+- Verifikasi browser end-to-end: login pembeli → checkout Bu Rina → kolom Catatan tampil persis di bawah stepper jumlah (32/200 counter) → isi "Kopi tanpa gula, coffe panas hot" → Buat Pesanan → kartu Pesanan tampil blok amber note; TrackSheet (Lacak & Barcode) menampilkan note; batalkan order → tombol trash muncul → dialog "Hapus dari riwayat?" (screenshot tool-results/delete-confirm-dialog.png) → Ya, Hapus → hilang dari daftar + API konfirmasi; login Rina → dashboard menampilkan CATATAN PEMBELI "Pedas level 3, tanpa nasi, kemasan terpisah" (screenshot tool-results/penjual-catatan2.png) dan order yang dihapus pembeli tetap ada di penjual; lint bersih; dev.log tanpa error
+
+Stage Summary:
+- FITUR 1 (hapus riwayat, pembeli saja): per-order (COMPLETED/CANCELLED) + hapus-semua dgn dialog konfirmasi; SOFT DELETE via buyerDeletedAt — riwayat hilang dari pembeli tapi catatan transaksi tetap utuh di penjual; pesanan aktif (PENDING/PROCESSING) tidak bisa dihapus
+- FITUR 2 (catatan pesanan): input opsional maks 200 char di checkout (bawah stepper jumlah) & keranjang; tersimpan di Order.note; tampil di kartu pesanan pembeli, TrackSheet/lacak, ScanDialog & dashboard penjual (blok amber menonjol)
+- File berubah: prisma/schema.prisma, src/lib/types.ts, api/orders/route.ts, api/orders/[id]/route.ts, widgets.tsx, checkout-screen.tsx, cart-screen.tsx, orders-screen.tsx, seller-dashboard-screen.tsx, order-widgets.tsx

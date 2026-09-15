@@ -16,6 +16,7 @@ import {
   Loader2,
   X,
   Zap,
+  StickyNote,
 } from "lucide-react";
 import {
   Dialog,
@@ -107,6 +108,21 @@ export function OrderTrackCard({
         </div>
         <StatusBadge status={order.status} />
       </div>
+
+      {/* Catatan pesanan dari pembeli — tampil di lacak pembeli & scan penjual */}
+      {order.note && (
+        <div className="flex items-start gap-2 rounded-2xl border border-amber-100 bg-amber-50/80 px-3 py-2">
+          <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+          <div className="min-w-0">
+            <p className="text-[9px] font-extrabold uppercase tracking-wide text-amber-600">
+              Catatan Pesanan
+            </p>
+            <p className="break-words text-[11px] font-bold leading-snug text-amber-900">
+              {order.note}
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Barcode — only for active/completed orders */}
       {!cancelled && (
