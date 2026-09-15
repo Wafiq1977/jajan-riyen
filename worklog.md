@@ -584,3 +584,20 @@ Stage Summary:
 - Kode kosong tetap sah: order dibuat tanpa bukti, pembeli kirim belakangan via "Bayar QRIS" di menu Pesanan (layar qris-payment lama tetap berfungsi utk jalur ini)
 - Pengaman baru: 1 kode referensi = 1 pesanan aktif (anti dobel-pakai bukti), QRIS hanya bila penjual aktifkan, validasi panjang 4-64
 - File berubah: api/orders/route.ts, api/payment/create/route.ts, widgets.tsx (QrisRefInput), checkout-screen.tsx, cart-screen.tsx
+
+---
+Task ID: 23
+Agent: Z.ai Code (main)
+Task: Push semua commit lokal ke GitHub menggunakan Personal Access Token (classic) yang diberikan user
+
+Work Log:
+- User memberikan PAT (classic) untuk push — sebelumnya sandbox tanpa kredensial GitHub sehingga commit tertahan lokal
+- Cek status git: branch main ahead of origin/main by 5 commits (26004a0, c2c50fd, a0c9b3e, 14dd721, 0aacce1), working tree clean
+- Push one-off tanpa menyimpan token ke disk: `git push https://<PAT>@github.com/Wafiq1977/jajan-riyen.git main:main` → sukses `ed394f7..0aacce1 main -> main`
+- Verifikasi pasca-push: worklog Task 21/22 lengkap (implementasi + verifikasi browser end-to-end), dev.log sehat (API 200, tanpa error), lint tidak berubah (tidak ada perubahan kode)
+- Token TIDAK dipersist ke .git/config / ~/.git-credentials / file manapun (dipakai sekali di URL push saja)
+
+Stage Summary:
+- GitHub repo Wafiq1977/jajan-riyen kini sinkron dgn lokal: versi terbaru = QRIS manual tanpa Midtrans (commit 0aacce1)
+- Vercel akan auto-deploy commit 0aacce1; saran: hapus env var MIDTRANS_* dari Vercel (sudah tidak dipakai)
+- Keamanan: sarankan user pertimbangkan rotasi PAT karena token pernah dibagikan lewat chat
